@@ -1,0 +1,46 @@
+// Copyright (c) 2018-2024 Charlie Vanaret
+// Licensed under the MIT license. See LICENSE file in the project directory for details.
+
+#ifndef UNO_SCALARMULTIPLE_H
+#define UNO_SCALARMULTIPLE_H
+
+#include "symbolic_traits.hpp"
+
+namespace uno {
+   // stores the expression (factor * expression) symbolically
+   template <typename Expression>
+   class ScalarMultiple {
+   public:
+      using value_type = typename std::remove_reference_t<Expression>::value_type;
+
+      ScalarMultiple(value_type factor, Expression&& expression): factor(factor), expression(std::forward<Expression>(expression)) { }
+
+      [[nodiscard]] constexpr size_t size() const { return this->expression.size(); }
+      [[nodiscard]] value_type operator[](size_t index) const {
+         return (this->factor == value_type(0)) ? value_type(0) : this->factor * this->expression[index];
+      }
+
+      [[nodiscard]] value_type get_factor() const {
+         return this->factor;
+      }
+
+      [[nodiscard]] constexpr decltype(auto) get_expression() const noexcept {
+         return this->expression;
+      }
+
+   protected:
+      const value_type factor;
+      storage_t<Expression> expression;
+   };
+
+   // free function
+   template <typename Expression, typename ElementType = typename Expression::value_type,
+      // the first argument should be of arithmetic type, the second not
+      typename std::enable_if_t<std::is_arithmetic_v<ElementType>, int> = 0,
+      typename std::enable_if_t<!std::is_arithmetic_v<Expression>, int> = 0>
+   ScalarMultiple<Expression> operator*(ElementType factor, Expression&& expression) {
+      return ScalarMultiple<Expression>(factor, std::forward<Expression>(expression));
+   }
+} // namespace
+
+#endif // UNO_SCALARMULTIPLE_H

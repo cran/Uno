@@ -1,0 +1,50 @@
+// Copyright (c) 2018-2024 Charlie Vanaret
+// Licensed under the MIT license. See LICENSE file in the project directory for details.
+
+#ifndef UNO_H
+#define UNO_H
+
+#include <memory>
+#include "ingredients/globalization_mechanisms/GlobalizationMechanism.hpp"
+#include "ingredients/glob/GlobalizationStrategy.hpp"
+#include "optimization/Result.hpp"
+
+namespace uno {
+   // forward declarations
+   class Model;
+   class Options;
+   class Statistics;
+   class Timer;
+   class UserCallbacks;
+
+   class Uno {
+   public:
+      Uno() = default;
+
+      // solve with or without user callbacks
+      Result solve(const Model& model, Options& options);
+      Result solve(const Model& model, Options& options, UserCallbacks& user_callbacks);
+
+      static std::string current_version();
+      static void print_available_strategies();
+      const std::string& get_method_description() const;
+
+   private:
+      std::unique_ptr<GlobalizationMechanism> globalization_mechanism{};
+      std::string method_description{"strategy combination not initialized"};
+
+      [[nodiscard]] bool initialize(Statistics& statistics, const Model& model, Iterate& current_iterate, Options& options,
+         EvaluationCache& evaluation_cache);
+      [[nodiscard]] static Statistics create_statistics(const Model& model);
+      [[nodiscard]] static bool check_termination(const Iterate& trial_iterate, size_t iteration, size_t max_iterations,
+         double current_time, double time_limit, OptimizationStatus& optimization_status, UserCallbacks& user_callbacks);
+      [[nodiscard]] Result uno_solve(const Model& model, Options& options, UserCallbacks& user_callbacks);
+      static void postprocess_solution(const Model& model, Iterate& iterate, Evaluations& evaluations);
+      [[nodiscard]] Result create_result(const Model& model, OptimizationStatus optimization_status, const Iterate& solution,
+         const Evaluations& evaluations, size_t major_iterations, const Timer& timer) const;
+      static void postprocess_multipliers_signs(const Model& model, Result& result);
+      void print_optimization_summary(const Result& result, bool print_solution) const;
+   };
+} // namespace
+
+#endif // UNO_H

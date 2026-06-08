@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+
+
+<title>Solving nonlinear programs with Uno</title>
+
+<script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
+// be compatible with the behavior of Pandoc < 2.8).
+document.addEventListener('DOMContentLoaded', function(e) {
+  var hs = document.querySelectorAll("div.section[class*='level'] > :first-child");
+  var i, h, a;
+  for (i = 0; i < hs.length; i++) {
+    h = hs[i];
+    if (!/^h[1-6]$/i.test(h.tagName)) continue;  // it should be a header h1-h6
+    a = h.attributes;
+    while (a.length > 0) h.removeAttribute(a[0].name);
+  }
+});
+</script>
+
+<style type="text/css">
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+span.underline{text-decoration: underline;}
+div.column{display: inline-block; vertical-align: top; width: 50%;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+</style>
+
+
+
+<style type="text/css">
+code {
+white-space: pre;
+}
+.sourceCode {
+overflow: visible;
+}
+</style>
+<style type="text/css" data-origin="pandoc">
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+<script>
+// apply pandoc div.sourceCode style to pre.sourceCode instead
+(function() {
+  var sheets = document.styleSheets;
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].ownerNode.dataset["origin"] !== "pandoc") continue;
+    try { var rules = sheets[i].cssRules; } catch (e) { continue; }
+    var j = 0;
+    while (j < rules.length) {
+      var rule = rules[j];
+      // check if there is a div.sourceCode rule
+      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") {
+        j++;
+        continue;
+      }
+      var style = rule.style.cssText;
+      // check if color or background-color is set
+      if (rule.style.color === '' && rule.style.backgroundColor === '') {
+        j++;
+        continue;
+      }
+      // replace div.sourceCode by a pre.sourceCode rule
+      sheets[i].deleteRule(j);
+      sheets[i].insertRule('pre.sourceCode{' + style + '}', j);
+    }
+  }
+})();
+</script>
+
+
+
+
+<style type="text/css">body {
+background-color: #fff;
+margin: 1em auto;
+max-width: 700px;
+overflow: visible;
+padding-left: 2em;
+padding-right: 2em;
+font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+font-size: 14px;
+line-height: 1.35;
+}
+#TOC {
+clear: both;
+margin: 0 0 10px 10px;
+padding: 4px;
+width: 400px;
+border: 1px solid #CCCCCC;
+border-radius: 5px;
+background-color: #f6f6f6;
+font-size: 13px;
+line-height: 1.3;
+}
+#TOC .toctitle {
+font-weight: bold;
+font-size: 15px;
+margin-left: 5px;
+}
+#TOC ul {
+padding-left: 40px;
+margin-left: -1.5em;
+margin-top: 5px;
+margin-bottom: 5px;
+}
+#TOC ul ul {
+margin-left: -2em;
+}
+#TOC li {
+line-height: 16px;
+}
+table {
+margin: 1em auto;
+border-width: 1px;
+border-color: #DDDDDD;
+border-style: outset;
+border-collapse: collapse;
+}
+table th {
+border-width: 2px;
+padding: 5px;
+border-style: inset;
+}
+table td {
+border-width: 1px;
+border-style: inset;
+line-height: 18px;
+padding: 5px 5px;
+}
+table, table th, table td {
+border-left-style: none;
+border-right-style: none;
+}
+table thead, table tr.even {
+background-color: #f7f7f7;
+}
+p {
+margin: 0.5em 0;
+}
+blockquote {
+background-color: #f6f6f6;
+padding: 0.25em 0.75em;
+}
+hr {
+border-style: solid;
+border: none;
+border-top: 1px solid #777;
+margin: 28px 0;
+}
+dl {
+margin-left: 0;
+}
+dl dd {
+margin-bottom: 13px;
+margin-left: 13px;
+}
+dl dt {
+font-weight: bold;
+}
+ul {
+margin-top: 0;
+}
+ul li {
+list-style: circle outside;
+}
+ul ul {
+margin-bottom: 0;
+}
+pre, code {
+background-color: #f7f7f7;
+border-radius: 3px;
+color: #333;
+white-space: pre-wrap; 
+}
+pre {
+border-radius: 3px;
+margin: 5px 0px 10px 0px;
+padding: 10px;
+}
+pre:not([class]) {
+background-color: #f7f7f7;
+}
+code {
+font-family: Consolas, Monaco, 'Courier New', monospace;
+font-size: 85%;
+}
+p > code, li > code {
+padding: 2px 0px;
+}
+div.figure {
+text-align: center;
+}
+img {
+background-color: #FFFFFF;
+padding: 2px;
+border: 1px solid #DDDDDD;
+border-radius: 3px;
+border: 1px solid #CCCCCC;
+margin: 0 5px;
+}
+h1 {
+margin-top: 0;
+font-size: 35px;
+line-height: 40px;
+}
+h2 {
+border-bottom: 4px solid #f7f7f7;
+padding-top: 10px;
+padding-bottom: 2px;
+font-size: 145%;
+}
+h3 {
+border-bottom: 2px solid #f7f7f7;
+padding-top: 10px;
+font-size: 120%;
+}
+h4 {
+border-bottom: 1px solid #f7f7f7;
+margin-left: 8px;
+font-size: 105%;
+}
+h5, h6 {
+border-bottom: 1px solid #ccc;
+font-size: 105%;
+}
+a {
+color: #0033dd;
+text-decoration: none;
+}
+a:hover {
+color: #6666ff; }
+a:visited {
+color: #800080; }
+a:visited:hover {
+color: #BB00BB; }
+a[href^="http:"] {
+text-decoration: underline; }
+a[href^="https:"] {
+text-decoration: underline; }
+
+code > span.kw { color: #555; font-weight: bold; } 
+code > span.dt { color: #902000; } 
+code > span.dv { color: #40a070; } 
+code > span.bn { color: #d14; } 
+code > span.fl { color: #d14; } 
+code > span.ch { color: #d14; } 
+code > span.st { color: #d14; } 
+code > span.co { color: #888888; font-style: italic; } 
+code > span.ot { color: #007020; } 
+code > span.al { color: #ff0000; font-weight: bold; } 
+code > span.fu { color: #900; font-weight: bold; } 
+code > span.er { color: #a61717; background-color: #e3d2d2; } 
+</style>
+
+
+
+
+</head>
+
+<body>
+
+
+
+
+<h1 class="title toc-ignore">Solving nonlinear programs with Uno</h1>
+
+
+
+<div id="introduction" class="section level2">
+<h2>Introduction</h2>
+<p><strong>Uno</strong> wraps the <a href="https://github.com/cvanaret/Uno">Uno</a> C++ solver (Unifying
+Nonlinear Optimization) through its C API. One describes a nonlinear
+program with R callbacks — objective, gradient, constraints, constraint
+Jacobian, and Lagrangian Hessian — and Uno solves it. The package is the
+R analog of the <code>unopy</code> Python binding, and is intended as
+the nonlinear (DNLP) solver backend for <a href="https://cvxr.rbind.io">CVXR</a>.</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">uno_version</span>()</span>
+<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a><span class="co">#&gt; [1] &quot;2.7.3&quot;</span></span></code></pre></div>
+<p>Two solver paths are available, selected with the <code>preset</code>
+argument:</p>
+<ul>
+<li><strong><code>ipopt</code></strong> — an interior-point method whose
+symmetric-indefinite KKT systems are factored by <strong>MUMPS</strong>,
+reached at run time through the <a href="https://cran.r-project.org/package=rmumps">rmumps</a> package. It
+handles indefiniteness (nonconvex problems) through inertia
+correction.</li>
+<li><strong><code>filtersqp</code></strong> — a filter SQP method whose
+QP subproblems are solved by <strong>HiGHS</strong> (built from source
+with this package). HiGHS solves <em>convex</em> QPs, so this preset is
+the right choice for convex problems.</li>
+</ul>
+<p>We provide some examples to illustrate how the
+<strong>callbacks</strong> and their <strong>sparsity
+structures</strong> fit together.</p>
+</div>
+<div id="problem-description" class="section level2">
+<h2>Problem Description</h2>
+<p>Uno minimizes (or maximizes) a smooth objective subject to smooth
+constraints and bounds,</p>
+<p><span class="math display">\[
+\begin{aligned}
+\min_{x \in \mathbb{R}^n} \quad &amp; f(x) \\
+\text{subject to} \quad &amp; c^{\mathrm{L}} \le c(x) \le
+c^{\mathrm{U}}, \\
+                        &amp; x^{\mathrm{L}} \le x \le x^{\mathrm{U}},
+\end{aligned}
+\]</span></p>
+<p>where bounds may be infinite. As with most NLP solvers, the
+<em>type</em> of each constraint is encoded entirely in its bounds: an
+equality sets the lower and upper bound equal, and a one-sided
+inequality leaves the open side infinite.</p>
+</div>
+<div id="anatomy-of-uno_solve" class="section level2">
+<h2>Anatomy of <code>uno_solve()</code></h2>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="fu">uno_solve</span>(</span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a>  n, lb, ub, sense,                 <span class="co"># variables, bounds, minimize/maximize</span></span>
+<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a>  obj, grad,                        <span class="co"># objective f and its gradient</span></span>
+<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a>  m, cl, cu, cons,                  <span class="co"># constraints c and their bounds</span></span>
+<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a>  jac_rows, jac_cols, jac,          <span class="co"># constraint Jacobian (COO form)</span></span>
+<span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a>  hess_rows, hess_cols, hess,       <span class="co"># Lagrangian Hessian (lower triangle, COO)</span></span>
+<span id="cb2-7"><a href="#cb2-7" tabindex="-1"></a>  x0, preset, base_indexing, verbose,</span>
+<span id="cb2-8"><a href="#cb2-8" tabindex="-1"></a>  <span class="at">options =</span> <span class="fu">list</span>(),                 <span class="co"># Uno options, applied after the preset</span></span>
+<span id="cb2-9"><a href="#cb2-9" tabindex="-1"></a>  <span class="at">lagrangian_sign =</span> <span class="st">&quot;negative&quot;</span>,     <span class="co"># sign convention of the Hessian you return</span></span>
+<span id="cb2-10"><a href="#cb2-10" tabindex="-1"></a>  ...</span>
+<span id="cb2-11"><a href="#cb2-11" tabindex="-1"></a>)</span></code></pre></div>
+<div id="variables-bounds-and-sense" class="section level3">
+<h3>Variables, bounds, and sense</h3>
+<p><code>n</code> is the number of variables;
+<code>lb</code>/<code>ub</code> are length-<code>n</code> bound vectors
+(use <code>-Inf</code>/<code>Inf</code> for free, and
+<code>lb[i] == ub[i]</code> to fix a variable). <code>sense</code> is
+<code>&quot;minimize&quot;</code> or <code>&quot;maximize&quot;</code>.</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="co"># maximize -(x - 3)^2 on [0, 10]  -&gt;  x = 3</span></span>
+<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a>mx <span class="ot">&lt;-</span> <span class="fu">uno_solve</span>(</span>
+<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a>  <span class="at">n =</span> <span class="dv">1</span><span class="dt">L</span>, <span class="at">lb =</span> <span class="dv">0</span>, <span class="at">ub =</span> <span class="dv">10</span>, <span class="at">sense =</span> <span class="st">&quot;maximize&quot;</span>,</span>
+<span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a>  <span class="at">obj  =</span> <span class="cf">function</span>(x) <span class="sc">-</span>(x[<span class="dv">1</span>] <span class="sc">-</span> <span class="dv">3</span>)<span class="sc">^</span><span class="dv">2</span>,</span>
+<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a>  <span class="at">grad =</span> <span class="cf">function</span>(x) <span class="sc">-</span><span class="dv">2</span> <span class="sc">*</span> (x[<span class="dv">1</span>] <span class="sc">-</span> <span class="dv">3</span>),</span>
+<span id="cb3-6"><a href="#cb3-6" tabindex="-1"></a>  <span class="at">m =</span> <span class="dv">0</span><span class="dt">L</span>, <span class="at">cl =</span> <span class="fu">numeric</span>(), <span class="at">cu =</span> <span class="fu">numeric</span>(), <span class="at">cons =</span> <span class="cf">function</span>(x) <span class="fu">numeric</span>(),</span>
+<span id="cb3-7"><a href="#cb3-7" tabindex="-1"></a>  <span class="at">jac_rows =</span> <span class="fu">integer</span>(), <span class="at">jac_cols =</span> <span class="fu">integer</span>(), <span class="at">jac =</span> <span class="cf">function</span>(x) <span class="fu">numeric</span>(),</span>
+<span id="cb3-8"><a href="#cb3-8" tabindex="-1"></a>  <span class="at">hess_rows =</span> <span class="dv">1</span><span class="dt">L</span>, <span class="at">hess_cols =</span> <span class="dv">1</span><span class="dt">L</span>, <span class="at">hess =</span> <span class="cf">function</span>(x, sigma, lambda) sigma <span class="sc">*</span> (<span class="sc">-</span><span class="dv">2</span>),</span>
+<span id="cb3-9"><a href="#cb3-9" tabindex="-1"></a>  <span class="at">x0 =</span> <span class="dv">0</span>, <span class="at">preset =</span> <span class="st">&quot;ipopt&quot;</span>, <span class="at">base_indexing =</span> <span class="dv">1</span><span class="dt">L</span>, <span class="at">verbose =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb3-10"><a href="#cb3-10" tabindex="-1"></a>  <span class="at">options =</span> <span class="fu">list</span>(<span class="at">logger =</span> <span class="st">&quot;SILENT&quot;</span>)</span>
+<span id="cb3-11"><a href="#cb3-11" tabindex="-1"></a>)</span>
+<span id="cb3-12"><a href="#cb3-12" tabindex="-1"></a>mx<span class="sc">$</span>primal</span>
+<span id="cb3-13"><a href="#cb3-13" tabindex="-1"></a><span class="co">#&gt; [1] 3</span></span></code></pre></div>
+</div>
+<div id="objective-and-gradient" class="section level3">
+<h3>Objective and gradient</h3>
+<p><code>obj(x)</code> returns the scalar <span class="math inline">\(f(x)\)</span>; <code>grad(x)</code> returns the
+<strong>dense</strong> length-<code>n</code> gradient <span class="math inline">\(\nabla f(x)\)</span> (all <code>n</code> partials
+in variable order, including zeros).</p>
+</div>
+<div id="constraints-and-their-bounds" class="section level3">
+<h3>Constraints and their bounds</h3>
+<p><code>m</code> is the number of constraints (<code>0</code> for an
+unconstrained problem, in which case the constraint and Jacobian
+callbacks return empty vectors). <code>cons(x)</code> returns the
+length-<code>m</code> vector <span class="math inline">\(c(x)\)</span>,
+and <code>cl</code>/<code>cu</code> are its bounds:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Constraint</th>
+<th align="center"><code>cl</code></th>
+<th align="center"><code>cu</code></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><span class="math inline">\(c_j(x) = b\)</span></td>
+<td align="center"><code>b</code></td>
+<td align="center"><code>b</code></td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(c_j(x) \ge a\)</span></td>
+<td align="center"><code>a</code></td>
+<td align="center"><code>Inf</code></td>
+</tr>
+<tr class="odd">
+<td><span class="math inline">\(c_j(x) \le d\)</span></td>
+<td align="center"><code>-Inf</code></td>
+<td align="center"><code>d</code></td>
+</tr>
+<tr class="even">
+<td><span class="math inline">\(a \le c_j(x) \le d\)</span></td>
+<td align="center"><code>a</code></td>
+<td align="center"><code>d</code></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="the-constraint-jacobian-coo-form" class="section level3">
+<h3>The constraint Jacobian (COO form)</h3>
+<p>The Jacobian <span class="math inline">\(J_{jk} = \partial
+c_j/\partial x_k\)</span> is supplied in <strong>coordinate (COO)
+form</strong>: you declare its sparsity pattern <em>once</em> as
+parallel <code>jac_rows</code>/<code>jac_cols</code> index vectors, and
+<code>jac(x)</code> returns just the nonzero <em>values</em> in that
+same order.</p>
+<p>The index vectors must be <strong>integer</strong> (<code>1L</code>,
+<code>2L</code>, …, or wrapped with <code>as.integer()</code>), and
+their base is controlled by <code>base_indexing</code>:</p>
+<ul>
+<li><code>base_indexing = 1L</code> — Fortran/R-style
+<strong>one-based</strong> indices (used throughout this vignette);</li>
+<li><code>base_indexing = 0L</code> — C-style
+<strong>zero-based</strong> indices.</li>
+</ul>
+<p>The base declared must match the indices you actually provided in
+<code>jac_rows</code>/<code>jac_cols</code> (and
+<code>hess_rows</code>/<code>hess_cols</code>).</p>
+</div>
+<div id="the-lagrangian-hessian-lower-triangle" class="section level3">
+<h3>The Lagrangian Hessian (lower triangle)</h3>
+<p>Like most interior-point/SQP solvers, Uno does not use the Hessian of
+the objective, rather the Hessian of the <strong>Lagrangian</strong>,
+supplied as the <strong>lower triangle</strong> in COO form
+(<code>hess_rows</code>/<code>hess_cols</code> with
+<code>row &gt;= col</code>). The callback receives the objective scale
+<code>sigma</code> (<span class="math inline">\(\sigma\)</span>) and the
+constraint multipliers <code>lambda</code>:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a>hess <span class="ot">&lt;-</span> <span class="cf">function</span>(x, sigma, lambda) ...   <span class="co"># lower-triangular nonzero values</span></span></code></pre></div>
+<p>The one subtlety unique to Uno is the <strong>sign
+convention</strong>. By default Uno uses</p>
+<p><span class="math display">\[
+\nabla^2_{xx} L = \sigma\, \nabla^2 f(x) \;-\; \sum_j \lambda_j\,
+\nabla^2 c_j(x)
+\qquad (\texttt{lagrangian\_sign = &quot;negative&quot;}),
+\]</span></p>
+<p>so the constraint-Hessian terms are <strong>subtracted</strong>. If
+your derivations instead produce the IPOPT/<code>sparsediff</code>
+convention</p>
+<p><span class="math display">\[
+\nabla^2_{xx} L = \sigma\, \nabla^2 f(x) \;+\; \sum_j \lambda_j\,
+\nabla^2 c_j(x)
+\qquad (\texttt{lagrangian\_sign = &quot;positive&quot;}),
+\]</span></p>
+<p>pass <code>lagrangian_sign = &quot;positive&quot;</code> so the terms get the
+right sign. <strong>The convention you pass must match the convention
+your <code>hess</code> returns.</strong> When all constraints are
+<em>linear</em> their Hessians vanish and the choice is irrelevant.</p>
+</div>
+<div id="options-and-the-return-value" class="section level3">
+<h3>Options and the return value</h3>
+<p><code>options</code> is a named list of Uno options applied
+<em>after</em> the preset (so they override it); each value is coerced
+to the option’s declared type, and an unknown name or unacceptable value
+raises an error. We use <code>list(logger = &quot;SILENT&quot;)</code> below to
+keep Uno quiet.</p>
+<p><code>uno_solve()</code> returns a named list. The
+<code>optimization_status</code> and <code>solution_status</code> are
+<strong>named integers</strong> of the form <code>c(SUCCESS = 0L)</code>
+— the value is Uno’s enum code and the name its canonical label — so you
+can key a status map on <code>names(status)</code> and still read the
+bare code with <code>status[[1L]]</code>. The list also carries
+<code>objective</code>, <code>primal</code>, the dual solution
+(<code>constraint_dual</code>, <code>lower_bound_dual</code>,
+<code>upper_bound_dual</code>), KKT residuals, and per-callback
+evaluation counters.</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a>quiet <span class="ot">&lt;-</span> <span class="fu">list</span>(<span class="at">logger =</span> <span class="st">&quot;SILENT&quot;</span>)</span></code></pre></div>
+</div>
+</div>
+<div id="example-1-hs071-the-full-machinery" class="section level2">
+<h2>Example 1: HS071 — the full machinery</h2>
+<p>The Hock–Schittkowski problem #71 exercises everything at once: a
+nonlinear objective, one nonlinear inequality, one nonlinear equality,
+and bounds.</p>
+<p><span class="math display">\[
+\begin{aligned}
+\min_{x \in \mathbb{R}^4} \quad &amp; x_1 x_4 (x_1 + x_2 + x_3) + x_3 \\
+\text{s.t.}\quad &amp; x_1 x_2 x_3 x_4 \ge 25, \\
+                 &amp; x_1^2 + x_2^2 + x_3^2 + x_4^2 = 40, \\
+                 &amp; 1 \le x_i \le 5.
+\end{aligned}
+\]</span></p>
+<p>Both constraints depend on every variable, so the Jacobian is dense
+(8 nonzeros). The Lagrangian Hessian is a full symmetric <span class="math inline">\(4\times4\)</span> matrix; its lower triangle has
+10 nonzeros. We write the Hessian in the <strong>positive</strong>
+convention (matching, e.g., the <code>ipopt</code> package’s
+vignette).</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a>hs071 <span class="ot">&lt;-</span> <span class="fu">uno_solve</span>(</span>
+<span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a>  <span class="at">n =</span> <span class="dv">4</span><span class="dt">L</span>, <span class="at">lb =</span> <span class="fu">rep</span>(<span class="dv">1</span>, <span class="dv">4</span>), <span class="at">ub =</span> <span class="fu">rep</span>(<span class="dv">5</span>, <span class="dv">4</span>), <span class="at">sense =</span> <span class="st">&quot;minimize&quot;</span>,</span>
+<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a></span>
+<span id="cb6-4"><a href="#cb6-4" tabindex="-1"></a>  <span class="at">obj  =</span> <span class="cf">function</span>(x) x[<span class="dv">1</span>] <span class="sc">*</span> x[<span class="dv">4</span>] <span class="sc">*</span> (x[<span class="dv">1</span>] <span class="sc">+</span> x[<span class="dv">2</span>] <span class="sc">+</span> x[<span class="dv">3</span>]) <span class="sc">+</span> x[<span class="dv">3</span>],</span>
+<span id="cb6-5"><a href="#cb6-5" tabindex="-1"></a>  <span class="at">grad =</span> <span class="cf">function</span>(x) <span class="fu">c</span>(</span>
+<span id="cb6-6"><a href="#cb6-6" tabindex="-1"></a>    x[<span class="dv">4</span>] <span class="sc">*</span> (<span class="dv">2</span> <span class="sc">*</span> x[<span class="dv">1</span>] <span class="sc">+</span> x[<span class="dv">2</span>] <span class="sc">+</span> x[<span class="dv">3</span>]),</span>
+<span id="cb6-7"><a href="#cb6-7" tabindex="-1"></a>    x[<span class="dv">1</span>] <span class="sc">*</span> x[<span class="dv">4</span>],</span>
+<span id="cb6-8"><a href="#cb6-8" tabindex="-1"></a>    x[<span class="dv">1</span>] <span class="sc">*</span> x[<span class="dv">4</span>] <span class="sc">+</span> <span class="dv">1</span>,</span>
+<span id="cb6-9"><a href="#cb6-9" tabindex="-1"></a>    x[<span class="dv">1</span>] <span class="sc">*</span> (x[<span class="dv">1</span>] <span class="sc">+</span> x[<span class="dv">2</span>] <span class="sc">+</span> x[<span class="dv">3</span>])</span>
+<span id="cb6-10"><a href="#cb6-10" tabindex="-1"></a>  ),</span>
+<span id="cb6-11"><a href="#cb6-11" tabindex="-1"></a></span>
+<span id="cb6-12"><a href="#cb6-12" tabindex="-1"></a>  <span class="at">m =</span> <span class="dv">2</span><span class="dt">L</span>, <span class="at">cl =</span> <span class="fu">c</span>(<span class="dv">25</span>, <span class="dv">40</span>), <span class="at">cu =</span> <span class="fu">c</span>(<span class="cn">Inf</span>, <span class="dv">40</span>),   <span class="co"># g1 &gt;= 25 ; g2 == 40</span></span>
+<span id="cb6-13"><a href="#cb6-13" tabindex="-1"></a>  <span class="at">cons =</span> <span class="cf">function</span>(x) <span class="fu">c</span>(<span class="fu">prod</span>(x), <span class="fu">sum</span>(x<span class="sc">^</span><span class="dv">2</span>)),</span>
+<span id="cb6-14"><a href="#cb6-14" tabindex="-1"></a></span>
+<span id="cb6-15"><a href="#cb6-15" tabindex="-1"></a>  <span class="co"># dense 2 x 4 Jacobian, one-based COO</span></span>
+<span id="cb6-16"><a href="#cb6-16" tabindex="-1"></a>  <span class="at">jac_rows =</span> <span class="fu">rep</span>(<span class="dv">1</span><span class="sc">:</span><span class="dv">2</span>, <span class="at">each =</span> <span class="dv">4</span><span class="dt">L</span>),</span>
+<span id="cb6-17"><a href="#cb6-17" tabindex="-1"></a>  <span class="at">jac_cols =</span> <span class="fu">rep</span>(<span class="dv">1</span><span class="sc">:</span><span class="dv">4</span>, <span class="at">times =</span> <span class="dv">2</span><span class="dt">L</span>),</span>
+<span id="cb6-18"><a href="#cb6-18" tabindex="-1"></a>  <span class="at">jac =</span> <span class="cf">function</span>(x) <span class="fu">c</span>(</span>
+<span id="cb6-19"><a href="#cb6-19" tabindex="-1"></a>    x[<span class="dv">2</span>] <span class="sc">*</span> x[<span class="dv">3</span>] <span class="sc">*</span> x[<span class="dv">4</span>], x[<span class="dv">1</span>] <span class="sc">*</span> x[<span class="dv">3</span>] <span class="sc">*</span> x[<span class="dv">4</span>], x[<span class="dv">1</span>] <span class="sc">*</span> x[<span class="dv">2</span>] <span class="sc">*</span> x[<span class="dv">4</span>], x[<span class="dv">1</span>] <span class="sc">*</span> x[<span class="dv">2</span>] <span class="sc">*</span> x[<span class="dv">3</span>],</span>
+<span id="cb6-20"><a href="#cb6-20" tabindex="-1"></a>    <span class="dv">2</span> <span class="sc">*</span> x[<span class="dv">1</span>], <span class="dv">2</span> <span class="sc">*</span> x[<span class="dv">2</span>], <span class="dv">2</span> <span class="sc">*</span> x[<span class="dv">3</span>], <span class="dv">2</span> <span class="sc">*</span> x[<span class="dv">4</span>]</span>
+<span id="cb6-21"><a href="#cb6-21" tabindex="-1"></a>  ),</span>
+<span id="cb6-22"><a href="#cb6-22" tabindex="-1"></a></span>
+<span id="cb6-23"><a href="#cb6-23" tabindex="-1"></a>  <span class="co"># lower triangle of the 4 x 4 Lagrangian Hessian, row by row</span></span>
+<span id="cb6-24"><a href="#cb6-24" tabindex="-1"></a>  <span class="at">hess_rows =</span> <span class="fu">as.integer</span>(<span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">2</span>, <span class="dv">3</span>, <span class="dv">3</span>, <span class="dv">3</span>, <span class="dv">4</span>, <span class="dv">4</span>, <span class="dv">4</span>, <span class="dv">4</span>)),</span>
+<span id="cb6-25"><a href="#cb6-25" tabindex="-1"></a>  <span class="at">hess_cols =</span> <span class="fu">as.integer</span>(<span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">3</span>, <span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">3</span>, <span class="dv">4</span>)),</span>
+<span id="cb6-26"><a href="#cb6-26" tabindex="-1"></a>  <span class="at">hess =</span> <span class="cf">function</span>(x, sigma, lambda) {</span>
+<span id="cb6-27"><a href="#cb6-27" tabindex="-1"></a>    l1 <span class="ot">&lt;-</span> lambda[<span class="dv">1</span>]; l2 <span class="ot">&lt;-</span> lambda[<span class="dv">2</span>]</span>
+<span id="cb6-28"><a href="#cb6-28" tabindex="-1"></a>    <span class="fu">c</span>(</span>
+<span id="cb6-29"><a href="#cb6-29" tabindex="-1"></a>      sigma <span class="sc">*</span> (<span class="dv">2</span> <span class="sc">*</span> x[<span class="dv">4</span>])                  <span class="sc">+</span> l2 <span class="sc">*</span> <span class="dv">2</span>,        <span class="co"># (1,1)</span></span>
+<span id="cb6-30"><a href="#cb6-30" tabindex="-1"></a>      sigma <span class="sc">*</span> x[<span class="dv">4</span>]            <span class="sc">+</span> l1 <span class="sc">*</span> (x[<span class="dv">3</span>] <span class="sc">*</span> x[<span class="dv">4</span>]),        <span class="co"># (2,1)</span></span>
+<span id="cb6-31"><a href="#cb6-31" tabindex="-1"></a>      l2 <span class="sc">*</span> <span class="dv">2</span>,                                             <span class="co"># (2,2)</span></span>
+<span id="cb6-32"><a href="#cb6-32" tabindex="-1"></a>      sigma <span class="sc">*</span> x[<span class="dv">4</span>]            <span class="sc">+</span> l1 <span class="sc">*</span> (x[<span class="dv">2</span>] <span class="sc">*</span> x[<span class="dv">4</span>]),        <span class="co"># (3,1)</span></span>
+<span id="cb6-33"><a href="#cb6-33" tabindex="-1"></a>      l1 <span class="sc">*</span> (x[<span class="dv">1</span>] <span class="sc">*</span> x[<span class="dv">4</span>]),                                 <span class="co"># (3,2)</span></span>
+<span id="cb6-34"><a href="#cb6-34" tabindex="-1"></a>      l2 <span class="sc">*</span> <span class="dv">2</span>,                                             <span class="co"># (3,3)</span></span>
+<span id="cb6-35"><a href="#cb6-35" tabindex="-1"></a>      sigma <span class="sc">*</span> (<span class="dv">2</span> <span class="sc">*</span> x[<span class="dv">1</span>] <span class="sc">+</span> x[<span class="dv">2</span>] <span class="sc">+</span> x[<span class="dv">3</span>]) <span class="sc">+</span> l1 <span class="sc">*</span> (x[<span class="dv">2</span>] <span class="sc">*</span> x[<span class="dv">3</span>]),  <span class="co"># (4,1)</span></span>
+<span id="cb6-36"><a href="#cb6-36" tabindex="-1"></a>      sigma <span class="sc">*</span> x[<span class="dv">1</span>]            <span class="sc">+</span> l1 <span class="sc">*</span> (x[<span class="dv">1</span>] <span class="sc">*</span> x[<span class="dv">3</span>]),        <span class="co"># (4,2)</span></span>
+<span id="cb6-37"><a href="#cb6-37" tabindex="-1"></a>      sigma <span class="sc">*</span> x[<span class="dv">1</span>]            <span class="sc">+</span> l1 <span class="sc">*</span> (x[<span class="dv">1</span>] <span class="sc">*</span> x[<span class="dv">2</span>]),        <span class="co"># (4,3)</span></span>
+<span id="cb6-38"><a href="#cb6-38" tabindex="-1"></a>      l2 <span class="sc">*</span> <span class="dv">2</span>                                              <span class="co"># (4,4)</span></span>
+<span id="cb6-39"><a href="#cb6-39" tabindex="-1"></a>    )</span>
+<span id="cb6-40"><a href="#cb6-40" tabindex="-1"></a>  },</span>
+<span id="cb6-41"><a href="#cb6-41" tabindex="-1"></a></span>
+<span id="cb6-42"><a href="#cb6-42" tabindex="-1"></a>  <span class="at">x0 =</span> <span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">5</span>, <span class="dv">5</span>, <span class="dv">1</span>), <span class="at">preset =</span> <span class="st">&quot;ipopt&quot;</span>, <span class="at">base_indexing =</span> <span class="dv">1</span><span class="dt">L</span>, <span class="at">verbose =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb6-43"><a href="#cb6-43" tabindex="-1"></a>  <span class="at">options =</span> quiet, <span class="at">lagrangian_sign =</span> <span class="st">&quot;positive&quot;</span></span>
+<span id="cb6-44"><a href="#cb6-44" tabindex="-1"></a>)</span>
+<span id="cb6-45"><a href="#cb6-45" tabindex="-1"></a></span>
+<span id="cb6-46"><a href="#cb6-46" tabindex="-1"></a><span class="fu">names</span>(hs071<span class="sc">$</span>optimization_status)</span>
+<span id="cb6-47"><a href="#cb6-47" tabindex="-1"></a><span class="co">#&gt; [1] &quot;SUCCESS&quot;</span></span>
+<span id="cb6-48"><a href="#cb6-48" tabindex="-1"></a>hs071<span class="sc">$</span>objective                    <span class="co"># 17.014</span></span>
+<span id="cb6-49"><a href="#cb6-49" tabindex="-1"></a><span class="co">#&gt; [1] 17.01402</span></span>
+<span id="cb6-50"><a href="#cb6-50" tabindex="-1"></a>hs071<span class="sc">$</span>primal                       <span class="co"># (1, 4.743, 3.821, 1.379)</span></span>
+<span id="cb6-51"><a href="#cb6-51" tabindex="-1"></a><span class="co">#&gt; [1] 1.000000 4.743000 3.821150 1.379408</span></span>
+<span id="cb6-52"><a href="#cb6-52" tabindex="-1"></a>hs071<span class="sc">$</span>constraint_dual</span>
+<span id="cb6-53"><a href="#cb6-53" tabindex="-1"></a><span class="co">#&gt; [1] -0.5522937  0.1614686</span></span></code></pre></div>
+</div>
+<div id="example-2-hs015-nonconvex-the-default-negative-convention" class="section level2">
+<h2>Example 2: HS015 — nonconvex, the default (negative) convention</h2>
+<p>HS015 is nonconvex, which makes it a good illustration of two things:
+the <strong>default</strong> Lagrangian sign convention, and <em>why
+nonconvex problems need the interior-point preset</em>.</p>
+<p><span class="math display">\[
+\min_{x}\; 100\,(x_2 - x_1^2)^2 + (1 - x_1)^2
+\quad\text{s.t.}\quad x_1 x_2 \ge 1,\; x_1 + x_2^2 \ge 0,\; x_1 \le 0.5
+.
+\]</span></p>
+<p>The constraints are nonlinear, so here the sign convention matters.
+We leave <code>lagrangian_sign</code> at its default
+<code>&quot;negative&quot;</code> and therefore <strong>subtract</strong> the
+<code>lambda</code> terms in the Hessian.</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a>hs015 <span class="ot">&lt;-</span> <span class="fu">uno_solve</span>(</span>
+<span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a>  <span class="at">n =</span> <span class="dv">2</span><span class="dt">L</span>, <span class="at">lb =</span> <span class="fu">c</span>(<span class="sc">-</span><span class="cn">Inf</span>, <span class="sc">-</span><span class="cn">Inf</span>), <span class="at">ub =</span> <span class="fu">c</span>(<span class="fl">0.5</span>, <span class="cn">Inf</span>), <span class="at">sense =</span> <span class="st">&quot;minimize&quot;</span>,</span>
+<span id="cb7-3"><a href="#cb7-3" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" tabindex="-1"></a>  <span class="at">obj  =</span> <span class="cf">function</span>(x) <span class="dv">100</span> <span class="sc">*</span> (x[<span class="dv">2</span>] <span class="sc">-</span> x[<span class="dv">1</span>]<span class="sc">^</span><span class="dv">2</span>)<span class="sc">^</span><span class="dv">2</span> <span class="sc">+</span> (<span class="dv">1</span> <span class="sc">-</span> x[<span class="dv">1</span>])<span class="sc">^</span><span class="dv">2</span>,</span>
+<span id="cb7-5"><a href="#cb7-5" tabindex="-1"></a>  <span class="at">grad =</span> <span class="cf">function</span>(x) <span class="fu">c</span>(</span>
+<span id="cb7-6"><a href="#cb7-6" tabindex="-1"></a>    <span class="dv">400</span> <span class="sc">*</span> x[<span class="dv">1</span>]<span class="sc">^</span><span class="dv">3</span> <span class="sc">-</span> <span class="dv">400</span> <span class="sc">*</span> x[<span class="dv">1</span>] <span class="sc">*</span> x[<span class="dv">2</span>] <span class="sc">+</span> <span class="dv">2</span> <span class="sc">*</span> x[<span class="dv">1</span>] <span class="sc">-</span> <span class="dv">2</span>,</span>
+<span id="cb7-7"><a href="#cb7-7" tabindex="-1"></a>    <span class="dv">200</span> <span class="sc">*</span> (x[<span class="dv">2</span>] <span class="sc">-</span> x[<span class="dv">1</span>]<span class="sc">^</span><span class="dv">2</span>)</span>
+<span id="cb7-8"><a href="#cb7-8" tabindex="-1"></a>  ),</span>
+<span id="cb7-9"><a href="#cb7-9" tabindex="-1"></a></span>
+<span id="cb7-10"><a href="#cb7-10" tabindex="-1"></a>  <span class="at">m =</span> <span class="dv">2</span><span class="dt">L</span>, <span class="at">cl =</span> <span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">0</span>), <span class="at">cu =</span> <span class="fu">c</span>(<span class="cn">Inf</span>, <span class="cn">Inf</span>),</span>
+<span id="cb7-11"><a href="#cb7-11" tabindex="-1"></a>  <span class="at">cons =</span> <span class="cf">function</span>(x) <span class="fu">c</span>(x[<span class="dv">1</span>] <span class="sc">*</span> x[<span class="dv">2</span>], x[<span class="dv">1</span>] <span class="sc">+</span> x[<span class="dv">2</span>]<span class="sc">^</span><span class="dv">2</span>),</span>
+<span id="cb7-12"><a href="#cb7-12" tabindex="-1"></a></span>
+<span id="cb7-13"><a href="#cb7-13" tabindex="-1"></a>  <span class="at">jac_rows =</span> <span class="fu">as.integer</span>(<span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">1</span>, <span class="dv">2</span>)),</span>
+<span id="cb7-14"><a href="#cb7-14" tabindex="-1"></a>  <span class="at">jac_cols =</span> <span class="fu">as.integer</span>(<span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">2</span>)),</span>
+<span id="cb7-15"><a href="#cb7-15" tabindex="-1"></a>  <span class="at">jac =</span> <span class="cf">function</span>(x) <span class="fu">c</span>(x[<span class="dv">2</span>], <span class="dv">1</span>, x[<span class="dv">1</span>], <span class="dv">2</span> <span class="sc">*</span> x[<span class="dv">2</span>]),</span>
+<span id="cb7-16"><a href="#cb7-16" tabindex="-1"></a></span>
+<span id="cb7-17"><a href="#cb7-17" tabindex="-1"></a>  <span class="at">hess_rows =</span> <span class="fu">as.integer</span>(<span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">2</span>)),</span>
+<span id="cb7-18"><a href="#cb7-18" tabindex="-1"></a>  <span class="at">hess_cols =</span> <span class="fu">as.integer</span>(<span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">2</span>)),</span>
+<span id="cb7-19"><a href="#cb7-19" tabindex="-1"></a>  <span class="at">hess =</span> <span class="cf">function</span>(x, sigma, lambda) <span class="fu">c</span>(</span>
+<span id="cb7-20"><a href="#cb7-20" tabindex="-1"></a>    sigma <span class="sc">*</span> (<span class="dv">1200</span> <span class="sc">*</span> x[<span class="dv">1</span>]<span class="sc">^</span><span class="dv">2</span> <span class="sc">-</span> <span class="dv">400</span> <span class="sc">*</span> x[<span class="dv">2</span>] <span class="sc">+</span> <span class="dv">2</span>),   <span class="co"># (1,1): from the objective</span></span>
+<span id="cb7-21"><a href="#cb7-21" tabindex="-1"></a>    <span class="sc">-</span><span class="dv">400</span> <span class="sc">*</span> sigma <span class="sc">*</span> x[<span class="dv">1</span>] <span class="sc">-</span> lambda[<span class="dv">1</span>],            <span class="co"># (2,1): note the minus signs</span></span>
+<span id="cb7-22"><a href="#cb7-22" tabindex="-1"></a>    <span class="dv">200</span> <span class="sc">*</span> sigma <span class="sc">-</span> <span class="dv">2</span> <span class="sc">*</span> lambda[<span class="dv">2</span>]                 <span class="co"># (2,2)</span></span>
+<span id="cb7-23"><a href="#cb7-23" tabindex="-1"></a>  ),</span>
+<span id="cb7-24"><a href="#cb7-24" tabindex="-1"></a></span>
+<span id="cb7-25"><a href="#cb7-25" tabindex="-1"></a>  <span class="at">x0 =</span> <span class="fu">c</span>(<span class="sc">-</span><span class="dv">2</span>, <span class="dv">1</span>), <span class="at">preset =</span> <span class="st">&quot;ipopt&quot;</span>, <span class="at">base_indexing =</span> <span class="dv">1</span><span class="dt">L</span>, <span class="at">verbose =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb7-26"><a href="#cb7-26" tabindex="-1"></a>  <span class="at">options =</span> quiet                                <span class="co"># lagrangian_sign = &quot;negative&quot; (default)</span></span>
+<span id="cb7-27"><a href="#cb7-27" tabindex="-1"></a>)</span>
+<span id="cb7-28"><a href="#cb7-28" tabindex="-1"></a></span>
+<span id="cb7-29"><a href="#cb7-29" tabindex="-1"></a><span class="fu">names</span>(hs015<span class="sc">$</span>optimization_status)</span>
+<span id="cb7-30"><a href="#cb7-30" tabindex="-1"></a><span class="co">#&gt; [1] &quot;SUCCESS&quot;</span></span>
+<span id="cb7-31"><a href="#cb7-31" tabindex="-1"></a>hs015<span class="sc">$</span>objective                    <span class="co"># 306.5</span></span>
+<span id="cb7-32"><a href="#cb7-32" tabindex="-1"></a><span class="co">#&gt; [1] 306.5</span></span>
+<span id="cb7-33"><a href="#cb7-33" tabindex="-1"></a>hs015<span class="sc">$</span>primal                       <span class="co"># (0.5, 2)</span></span>
+<span id="cb7-34"><a href="#cb7-34" tabindex="-1"></a><span class="co">#&gt; [1] 0.5 2.0</span></span></code></pre></div>
+</div>
+<div id="example-3-rosenbrock-unconstrained-with-and-without-a-hessian" class="section level2">
+<h2>Example 3: Rosenbrock — unconstrained, with and without a
+Hessian</h2>
+<p>The Rosenbrock “banana” function is the classic unconstrained test
+problem, with global minimum <span class="math inline">\(0\)</span> at
+<span class="math inline">\((1, 1)\)</span>. With no constraints
+(<code>m = 0</code>) there is no Jacobian, and the Lagrangian Hessian
+reduces to <span class="math inline">\(\sigma \nabla^2 f\)</span> (so
+<code>lambda</code> is unused).</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a>rosen <span class="ot">&lt;-</span> <span class="fu">uno_solve</span>(</span>
+<span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a>  <span class="at">n =</span> <span class="dv">2</span><span class="dt">L</span>, <span class="at">lb =</span> <span class="fu">c</span>(<span class="sc">-</span><span class="cn">Inf</span>, <span class="sc">-</span><span class="cn">Inf</span>), <span class="at">ub =</span> <span class="fu">c</span>(<span class="cn">Inf</span>, <span class="cn">Inf</span>), <span class="at">sense =</span> <span class="st">&quot;minimize&quot;</span>,</span>
+<span id="cb8-3"><a href="#cb8-3" tabindex="-1"></a></span>
+<span id="cb8-4"><a href="#cb8-4" tabindex="-1"></a>  <span class="at">obj  =</span> <span class="cf">function</span>(x) (<span class="dv">1</span> <span class="sc">-</span> x[<span class="dv">1</span>])<span class="sc">^</span><span class="dv">2</span> <span class="sc">+</span> <span class="dv">100</span> <span class="sc">*</span> (x[<span class="dv">2</span>] <span class="sc">-</span> x[<span class="dv">1</span>]<span class="sc">^</span><span class="dv">2</span>)<span class="sc">^</span><span class="dv">2</span>,</span>
+<span id="cb8-5"><a href="#cb8-5" tabindex="-1"></a>  <span class="at">grad =</span> <span class="cf">function</span>(x) <span class="fu">c</span>(</span>
+<span id="cb8-6"><a href="#cb8-6" tabindex="-1"></a>    <span class="sc">-</span><span class="dv">2</span> <span class="sc">*</span> (<span class="dv">1</span> <span class="sc">-</span> x[<span class="dv">1</span>]) <span class="sc">-</span> <span class="dv">400</span> <span class="sc">*</span> x[<span class="dv">1</span>] <span class="sc">*</span> (x[<span class="dv">2</span>] <span class="sc">-</span> x[<span class="dv">1</span>]<span class="sc">^</span><span class="dv">2</span>),</span>
+<span id="cb8-7"><a href="#cb8-7" tabindex="-1"></a>    <span class="dv">200</span> <span class="sc">*</span> (x[<span class="dv">2</span>] <span class="sc">-</span> x[<span class="dv">1</span>]<span class="sc">^</span><span class="dv">2</span>)</span>
+<span id="cb8-8"><a href="#cb8-8" tabindex="-1"></a>  ),</span>
+<span id="cb8-9"><a href="#cb8-9" tabindex="-1"></a></span>
+<span id="cb8-10"><a href="#cb8-10" tabindex="-1"></a>  <span class="at">m =</span> <span class="dv">0</span><span class="dt">L</span>, <span class="at">cl =</span> <span class="fu">numeric</span>(), <span class="at">cu =</span> <span class="fu">numeric</span>(), <span class="at">cons =</span> <span class="cf">function</span>(x) <span class="fu">numeric</span>(),</span>
+<span id="cb8-11"><a href="#cb8-11" tabindex="-1"></a>  <span class="at">jac_rows =</span> <span class="fu">integer</span>(), <span class="at">jac_cols =</span> <span class="fu">integer</span>(), <span class="at">jac =</span> <span class="cf">function</span>(x) <span class="fu">numeric</span>(),</span>
+<span id="cb8-12"><a href="#cb8-12" tabindex="-1"></a></span>
+<span id="cb8-13"><a href="#cb8-13" tabindex="-1"></a>  <span class="at">hess_rows =</span> <span class="fu">as.integer</span>(<span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">2</span>)),</span>
+<span id="cb8-14"><a href="#cb8-14" tabindex="-1"></a>  <span class="at">hess_cols =</span> <span class="fu">as.integer</span>(<span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">2</span>)),</span>
+<span id="cb8-15"><a href="#cb8-15" tabindex="-1"></a>  <span class="at">hess =</span> <span class="cf">function</span>(x, sigma, lambda) sigma <span class="sc">*</span> <span class="fu">c</span>(</span>
+<span id="cb8-16"><a href="#cb8-16" tabindex="-1"></a>    <span class="dv">2</span> <span class="sc">-</span> <span class="dv">400</span> <span class="sc">*</span> x[<span class="dv">2</span>] <span class="sc">+</span> <span class="dv">1200</span> <span class="sc">*</span> x[<span class="dv">1</span>]<span class="sc">^</span><span class="dv">2</span>,   <span class="co"># (1,1)</span></span>
+<span id="cb8-17"><a href="#cb8-17" tabindex="-1"></a>    <span class="sc">-</span><span class="dv">400</span> <span class="sc">*</span> x[<span class="dv">1</span>],                      <span class="co"># (2,1)</span></span>
+<span id="cb8-18"><a href="#cb8-18" tabindex="-1"></a>    <span class="dv">200</span>                               <span class="co"># (2,2)</span></span>
+<span id="cb8-19"><a href="#cb8-19" tabindex="-1"></a>  ),</span>
+<span id="cb8-20"><a href="#cb8-20" tabindex="-1"></a></span>
+<span id="cb8-21"><a href="#cb8-21" tabindex="-1"></a>  <span class="at">x0 =</span> <span class="fu">c</span>(<span class="sc">-</span><span class="fl">1.2</span>, <span class="dv">1</span>), <span class="at">preset =</span> <span class="st">&quot;ipopt&quot;</span>, <span class="at">base_indexing =</span> <span class="dv">1</span><span class="dt">L</span>, <span class="at">verbose =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb8-22"><a href="#cb8-22" tabindex="-1"></a>  <span class="at">options =</span> quiet</span>
+<span id="cb8-23"><a href="#cb8-23" tabindex="-1"></a>)</span>
+<span id="cb8-24"><a href="#cb8-24" tabindex="-1"></a>rosen<span class="sc">$</span>primal</span>
+<span id="cb8-25"><a href="#cb8-25" tabindex="-1"></a><span class="co">#&gt; [1] 1 1</span></span></code></pre></div>
+<p>If coding an exact Hessian is inconvenient, pass
+<code>hess = NULL</code> (with empty
+<code>hess_rows</code>/<code>hess_cols</code>); Uno then builds an
+L-BFGS approximation from gradients. This is only available with the
+<strong><code>ipopt</code></strong> preset — the HiGHS QP solver behind
+<code>filtersqp</code> requires an explicit Hessian.</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a>rosen_lm <span class="ot">&lt;-</span> <span class="fu">uno_solve</span>(</span>
+<span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a>  <span class="at">n =</span> <span class="dv">2</span><span class="dt">L</span>, <span class="at">lb =</span> <span class="fu">c</span>(<span class="sc">-</span><span class="cn">Inf</span>, <span class="sc">-</span><span class="cn">Inf</span>), <span class="at">ub =</span> <span class="fu">c</span>(<span class="cn">Inf</span>, <span class="cn">Inf</span>), <span class="at">sense =</span> <span class="st">&quot;minimize&quot;</span>,</span>
+<span id="cb9-3"><a href="#cb9-3" tabindex="-1"></a>  <span class="at">obj  =</span> <span class="cf">function</span>(x) (<span class="dv">1</span> <span class="sc">-</span> x[<span class="dv">1</span>])<span class="sc">^</span><span class="dv">2</span> <span class="sc">+</span> <span class="dv">100</span> <span class="sc">*</span> (x[<span class="dv">2</span>] <span class="sc">-</span> x[<span class="dv">1</span>]<span class="sc">^</span><span class="dv">2</span>)<span class="sc">^</span><span class="dv">2</span>,</span>
+<span id="cb9-4"><a href="#cb9-4" tabindex="-1"></a>  <span class="at">grad =</span> <span class="cf">function</span>(x) <span class="fu">c</span>(</span>
+<span id="cb9-5"><a href="#cb9-5" tabindex="-1"></a>    <span class="sc">-</span><span class="dv">2</span> <span class="sc">*</span> (<span class="dv">1</span> <span class="sc">-</span> x[<span class="dv">1</span>]) <span class="sc">-</span> <span class="dv">400</span> <span class="sc">*</span> x[<span class="dv">1</span>] <span class="sc">*</span> (x[<span class="dv">2</span>] <span class="sc">-</span> x[<span class="dv">1</span>]<span class="sc">^</span><span class="dv">2</span>),</span>
+<span id="cb9-6"><a href="#cb9-6" tabindex="-1"></a>    <span class="dv">200</span> <span class="sc">*</span> (x[<span class="dv">2</span>] <span class="sc">-</span> x[<span class="dv">1</span>]<span class="sc">^</span><span class="dv">2</span>)</span>
+<span id="cb9-7"><a href="#cb9-7" tabindex="-1"></a>  ),</span>
+<span id="cb9-8"><a href="#cb9-8" tabindex="-1"></a>  <span class="at">m =</span> <span class="dv">0</span><span class="dt">L</span>, <span class="at">cl =</span> <span class="fu">numeric</span>(), <span class="at">cu =</span> <span class="fu">numeric</span>(), <span class="at">cons =</span> <span class="cf">function</span>(x) <span class="fu">numeric</span>(),</span>
+<span id="cb9-9"><a href="#cb9-9" tabindex="-1"></a>  <span class="at">jac_rows =</span> <span class="fu">integer</span>(), <span class="at">jac_cols =</span> <span class="fu">integer</span>(), <span class="at">jac =</span> <span class="cf">function</span>(x) <span class="fu">numeric</span>(),</span>
+<span id="cb9-10"><a href="#cb9-10" tabindex="-1"></a>  <span class="at">hess_rows =</span> <span class="fu">integer</span>(), <span class="at">hess_cols =</span> <span class="fu">integer</span>(), <span class="at">hess =</span> <span class="cn">NULL</span>,</span>
+<span id="cb9-11"><a href="#cb9-11" tabindex="-1"></a>  <span class="at">x0 =</span> <span class="fu">c</span>(<span class="sc">-</span><span class="fl">1.2</span>, <span class="dv">1</span>), <span class="at">preset =</span> <span class="st">&quot;ipopt&quot;</span>, <span class="at">base_indexing =</span> <span class="dv">1</span><span class="dt">L</span>, <span class="at">verbose =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb9-12"><a href="#cb9-12" tabindex="-1"></a>  <span class="at">options =</span> quiet</span>
+<span id="cb9-13"><a href="#cb9-13" tabindex="-1"></a>)</span>
+<span id="cb9-14"><a href="#cb9-14" tabindex="-1"></a>rosen_lm<span class="sc">$</span>primal</span>
+<span id="cb9-15"><a href="#cb9-15" tabindex="-1"></a><span class="co">#&gt; [1] 1 1</span></span></code></pre></div>
+</div>
+<div id="example-4-maximum-entropy-distribution-equality-constraints" class="section level2">
+<h2>Example 4: Maximum-entropy distribution — equality constraints</h2>
+<p>This example is a staple of statistics and information-theory
+courses: among all probability distributions <span class="math inline">\(p\)</span> on <span class="math inline">\(\{1,
+\dots, K\}\)</span> with a prescribed mean <span class="math inline">\(\mu\)</span>, find the one of maximum entropy.
+Equivalently, minimize the negative entropy <span class="math inline">\(\sum_i p_i \log p_i\)</span> subject to <span class="math inline">\(\sum_i
+p_i = 1\)</span> and <span class="math inline">\(\sum_i i\,p_i =
+\mu\)</span>, <span class="math inline">\(p_i \ge 0\)</span>.</p>
+<p>Both constraints are <strong>linear</strong>, so their Hessians
+vanish — the Lagrangian Hessian is just <span class="math inline">\(\sigma\,\mathrm{diag}(1/p_i)\)</span>, a diagonal
+matrix, and the sign convention is irrelevant.</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a>K <span class="ot">&lt;-</span> <span class="dv">5</span><span class="dt">L</span>; support <span class="ot">&lt;-</span> <span class="dv">1</span><span class="sc">:</span>K; mu <span class="ot">&lt;-</span> <span class="dv">2</span></span>
+<span id="cb10-2"><a href="#cb10-2" tabindex="-1"></a></span>
+<span id="cb10-3"><a href="#cb10-3" tabindex="-1"></a>ent <span class="ot">&lt;-</span> <span class="fu">uno_solve</span>(</span>
+<span id="cb10-4"><a href="#cb10-4" tabindex="-1"></a>  <span class="at">n =</span> K, <span class="at">lb =</span> <span class="fu">rep</span>(<span class="fl">1e-8</span>, K), <span class="at">ub =</span> <span class="fu">rep</span>(<span class="dv">1</span>, K), <span class="at">sense =</span> <span class="st">&quot;minimize&quot;</span>,   <span class="co"># p_i &gt; 0</span></span>
+<span id="cb10-5"><a href="#cb10-5" tabindex="-1"></a></span>
+<span id="cb10-6"><a href="#cb10-6" tabindex="-1"></a>  <span class="at">obj  =</span> <span class="cf">function</span>(p) <span class="fu">sum</span>(p <span class="sc">*</span> <span class="fu">log</span>(p)),</span>
+<span id="cb10-7"><a href="#cb10-7" tabindex="-1"></a>  <span class="at">grad =</span> <span class="cf">function</span>(p) <span class="fu">log</span>(p) <span class="sc">+</span> <span class="dv">1</span>,</span>
+<span id="cb10-8"><a href="#cb10-8" tabindex="-1"></a></span>
+<span id="cb10-9"><a href="#cb10-9" tabindex="-1"></a>  <span class="at">m =</span> <span class="dv">2</span><span class="dt">L</span>, <span class="at">cl =</span> <span class="fu">c</span>(<span class="dv">1</span>, mu), <span class="at">cu =</span> <span class="fu">c</span>(<span class="dv">1</span>, mu),                <span class="co"># two equalities</span></span>
+<span id="cb10-10"><a href="#cb10-10" tabindex="-1"></a>  <span class="at">cons =</span> <span class="cf">function</span>(p) <span class="fu">c</span>(<span class="fu">sum</span>(p), <span class="fu">sum</span>(support <span class="sc">*</span> p)),</span>
+<span id="cb10-11"><a href="#cb10-11" tabindex="-1"></a>  <span class="at">jac_rows =</span> <span class="fu">rep</span>(<span class="dv">1</span><span class="sc">:</span><span class="dv">2</span>, <span class="at">each =</span> K),</span>
+<span id="cb10-12"><a href="#cb10-12" tabindex="-1"></a>  <span class="at">jac_cols =</span> <span class="fu">rep</span>(<span class="fu">seq_len</span>(K), <span class="at">times =</span> <span class="dv">2</span><span class="dt">L</span>),</span>
+<span id="cb10-13"><a href="#cb10-13" tabindex="-1"></a>  <span class="at">jac =</span> <span class="cf">function</span>(p) <span class="fu">c</span>(<span class="fu">rep</span>(<span class="dv">1</span>, K), support),             <span class="co"># constant Jacobian</span></span>
+<span id="cb10-14"><a href="#cb10-14" tabindex="-1"></a></span>
+<span id="cb10-15"><a href="#cb10-15" tabindex="-1"></a>  <span class="at">hess_rows =</span> <span class="fu">seq_len</span>(K), <span class="at">hess_cols =</span> <span class="fu">seq_len</span>(K),      <span class="co"># diagonal only</span></span>
+<span id="cb10-16"><a href="#cb10-16" tabindex="-1"></a>  <span class="at">hess =</span> <span class="cf">function</span>(p, sigma, lambda) sigma <span class="sc">*</span> (<span class="dv">1</span> <span class="sc">/</span> p),</span>
+<span id="cb10-17"><a href="#cb10-17" tabindex="-1"></a></span>
+<span id="cb10-18"><a href="#cb10-18" tabindex="-1"></a>  <span class="at">x0 =</span> <span class="fu">rep</span>(<span class="dv">1</span> <span class="sc">/</span> K, K), <span class="at">preset =</span> <span class="st">&quot;ipopt&quot;</span>, <span class="at">base_indexing =</span> <span class="dv">1</span><span class="dt">L</span>, <span class="at">verbose =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb10-19"><a href="#cb10-19" tabindex="-1"></a>  <span class="at">options =</span> quiet</span>
+<span id="cb10-20"><a href="#cb10-20" tabindex="-1"></a>)</span>
+<span id="cb10-21"><a href="#cb10-21" tabindex="-1"></a></span>
+<span id="cb10-22"><a href="#cb10-22" tabindex="-1"></a><span class="fu">round</span>(ent<span class="sc">$</span>primal, <span class="dv">5</span>)</span>
+<span id="cb10-23"><a href="#cb10-23" tabindex="-1"></a><span class="co">#&gt; [1] 0.45936 0.26079 0.14806 0.08406 0.04772</span></span>
+<span id="cb10-24"><a href="#cb10-24" tabindex="-1"></a><span class="fu">c</span>(<span class="at">total =</span> <span class="fu">sum</span>(ent<span class="sc">$</span>primal), <span class="at">mean =</span> <span class="fu">sum</span>(support <span class="sc">*</span> ent<span class="sc">$</span>primal))</span>
+<span id="cb10-25"><a href="#cb10-25" tabindex="-1"></a><span class="co">#&gt; total  mean </span></span>
+<span id="cb10-26"><a href="#cb10-26" tabindex="-1"></a><span class="co">#&gt;     1     2</span></span></code></pre></div>
+<p>Maximum-entropy theory says the answer is a discrete exponential
+distribution <span class="math inline">\(p_i \propto e^{-\theta
+i}\)</span>, with <span class="math inline">\(\theta\)</span> the
+multiplier on the mean constraint — and <code>constraint_dual</code>
+recovers exactly that:</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a>theta <span class="ot">&lt;-</span> ent<span class="sc">$</span>constraint_dual[<span class="dv">2</span>]</span>
+<span id="cb11-2"><a href="#cb11-2" tabindex="-1"></a>cf <span class="ot">&lt;-</span> <span class="fu">exp</span>(<span class="sc">-</span>theta <span class="sc">*</span> support); cf <span class="ot">&lt;-</span> cf <span class="sc">/</span> <span class="fu">sum</span>(cf)</span>
+<span id="cb11-3"><a href="#cb11-3" tabindex="-1"></a><span class="fu">round</span>(cf, <span class="dv">5</span>)                       <span class="co"># matches ent$primal</span></span>
+<span id="cb11-4"><a href="#cb11-4" tabindex="-1"></a><span class="co">#&gt; [1] 0.04772 0.08406 0.14806 0.26079 0.45936</span></span></code></pre></div>
+</div>
+<div id="example-5-a-convex-qp-via-the-sqp-highs-preset" class="section level2">
+<h2>Example 5: a convex QP via the SQP (HiGHS) preset</h2>
+<p>The examples above all use the interior-point <code>ipopt</code>
+preset because they are either nonconvex (HS015, Rosenbrock) or just
+convenient to solve that way. For a <strong>convex</strong> problem the
+SQP preset <code>filtersqp</code>, backed by HiGHS, applies. Here is a
+small convex QP, <span class="math inline">\(\min (x_1-1)^2 +
+(x_2-2.5)^2\)</span> subject to <span class="math inline">\(x_1 + x_2
+\le 3\)</span>, <span class="math inline">\(x \ge 0\)</span>:</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" tabindex="-1"></a>qp <span class="ot">&lt;-</span> <span class="fu">uno_solve</span>(</span>
+<span id="cb12-2"><a href="#cb12-2" tabindex="-1"></a>  <span class="at">n =</span> <span class="dv">2</span><span class="dt">L</span>, <span class="at">lb =</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">0</span>), <span class="at">ub =</span> <span class="fu">c</span>(<span class="cn">Inf</span>, <span class="cn">Inf</span>), <span class="at">sense =</span> <span class="st">&quot;minimize&quot;</span>,</span>
+<span id="cb12-3"><a href="#cb12-3" tabindex="-1"></a>  <span class="at">obj  =</span> <span class="cf">function</span>(x) (x[<span class="dv">1</span>] <span class="sc">-</span> <span class="dv">1</span>)<span class="sc">^</span><span class="dv">2</span> <span class="sc">+</span> (x[<span class="dv">2</span>] <span class="sc">-</span> <span class="fl">2.5</span>)<span class="sc">^</span><span class="dv">2</span>,</span>
+<span id="cb12-4"><a href="#cb12-4" tabindex="-1"></a>  <span class="at">grad =</span> <span class="cf">function</span>(x) <span class="fu">c</span>(<span class="dv">2</span> <span class="sc">*</span> (x[<span class="dv">1</span>] <span class="sc">-</span> <span class="dv">1</span>), <span class="dv">2</span> <span class="sc">*</span> (x[<span class="dv">2</span>] <span class="sc">-</span> <span class="fl">2.5</span>)),</span>
+<span id="cb12-5"><a href="#cb12-5" tabindex="-1"></a>  <span class="at">m =</span> <span class="dv">1</span><span class="dt">L</span>, <span class="at">cl =</span> <span class="sc">-</span><span class="cn">Inf</span>, <span class="at">cu =</span> <span class="dv">3</span>,</span>
+<span id="cb12-6"><a href="#cb12-6" tabindex="-1"></a>  <span class="at">cons =</span> <span class="cf">function</span>(x) x[<span class="dv">1</span>] <span class="sc">+</span> x[<span class="dv">2</span>],</span>
+<span id="cb12-7"><a href="#cb12-7" tabindex="-1"></a>  <span class="at">jac_rows =</span> <span class="fu">as.integer</span>(<span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">1</span>)), <span class="at">jac_cols =</span> <span class="fu">as.integer</span>(<span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">2</span>)),</span>
+<span id="cb12-8"><a href="#cb12-8" tabindex="-1"></a>  <span class="at">jac =</span> <span class="cf">function</span>(x) <span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">1</span>),</span>
+<span id="cb12-9"><a href="#cb12-9" tabindex="-1"></a>  <span class="at">hess_rows =</span> <span class="fu">as.integer</span>(<span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">2</span>)), <span class="at">hess_cols =</span> <span class="fu">as.integer</span>(<span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">2</span>)),</span>
+<span id="cb12-10"><a href="#cb12-10" tabindex="-1"></a>  <span class="at">hess =</span> <span class="cf">function</span>(x, sigma, lambda) sigma <span class="sc">*</span> <span class="fu">c</span>(<span class="dv">2</span>, <span class="dv">2</span>),</span>
+<span id="cb12-11"><a href="#cb12-11" tabindex="-1"></a>  <span class="at">x0 =</span> <span class="fu">c</span>(<span class="dv">0</span>, <span class="dv">0</span>), <span class="at">preset =</span> <span class="st">&quot;filtersqp&quot;</span>, <span class="at">base_indexing =</span> <span class="dv">1</span><span class="dt">L</span>, <span class="at">verbose =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb12-12"><a href="#cb12-12" tabindex="-1"></a>  <span class="at">options =</span> quiet</span>
+<span id="cb12-13"><a href="#cb12-13" tabindex="-1"></a>)</span>
+<span id="cb12-14"><a href="#cb12-14" tabindex="-1"></a>qp<span class="sc">$</span>primal</span>
+<span id="cb12-15"><a href="#cb12-15" tabindex="-1"></a><span class="co">#&gt; [1] 0.75 2.25</span></span>
+<span id="cb12-16"><a href="#cb12-16" tabindex="-1"></a>qp<span class="sc">$</span>objective</span>
+<span id="cb12-17"><a href="#cb12-17" tabindex="-1"></a><span class="co">#&gt; [1] 0.125</span></span></code></pre></div>
+</div>
+<div id="choosing-a-preset" class="section level2">
+<h2>Choosing a preset</h2>
+<ul>
+<li><strong>Convex</strong> problems — including the smooth problems
+produced by CVXR’s DNLP reduction — work with either preset.
+<code>filtersqp</code> (HiGHS) is natural for convex QP-shaped
+subproblems; <code>ipopt</code> (MUMPS) also works.
+<code>filtersqp</code> always requires an explicit Hessian (HiGHS cannot
+use an L-BFGS approximation).</li>
+<li><strong>Nonconvex</strong> problems (HS015, Rosenbrock) produce
+indefinite subproblems that HiGHS cannot solve. Use the interior-point
+<code>ipopt</code> preset, which copes with indefiniteness through
+inertia correction in MUMPS.</li>
+</ul>
+</div>
+<div id="solver-options" class="section level2">
+<h2>Solver options</h2>
+<p>Any Uno option can be passed through <code>options</code>; values are
+coerced to the option’s declared type and applied after the preset:</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" tabindex="-1"></a><span class="co"># cap the iteration count and tighten the tolerance</span></span>
+<span id="cb13-2"><a href="#cb13-2" tabindex="-1"></a><span class="fu">uno_solve</span>(..., <span class="at">preset =</span> <span class="st">&quot;ipopt&quot;</span>,</span>
+<span id="cb13-3"><a href="#cb13-3" tabindex="-1"></a>          <span class="at">options =</span> <span class="fu">list</span>(<span class="at">max_iterations =</span> <span class="dv">200</span><span class="dt">L</span>, <span class="at">tolerance =</span> <span class="fl">1e-8</span>))</span>
+<span id="cb13-4"><a href="#cb13-4" tabindex="-1"></a></span>
+<span id="cb13-5"><a href="#cb13-5" tabindex="-1"></a><span class="co"># pick the linear solver explicitly, and silence output</span></span>
+<span id="cb13-6"><a href="#cb13-6" tabindex="-1"></a><span class="fu">uno_solve</span>(..., <span class="at">preset =</span> <span class="st">&quot;ipopt&quot;</span>,</span>
+<span id="cb13-7"><a href="#cb13-7" tabindex="-1"></a>          <span class="at">options =</span> <span class="fu">list</span>(<span class="at">linear_solver =</span> <span class="st">&quot;MUMPS&quot;</span>, <span class="at">logger =</span> <span class="st">&quot;SILENT&quot;</span>))</span></code></pre></div>
+<p>An unknown option name, or a value the option rejects, raises an
+error rather than being silently ignored.</p>
+</div>
+<div id="monitoring-and-early-termination" class="section level2">
+<h2>Monitoring and early termination</h2>
+<p><code>uno_solve()</code> accepts an optional
+<code>iter_callback</code>, a <code>function(info)</code> that Uno calls
+at each <em>acceptable iterate</em>. <code>info</code> is a named list
+carrying the current <code>primals</code>, the duals
+(<code>lower_bound_dual</code>, <code>upper_bound_dual</code>,
+<code>constraint_dual</code>), the <code>objective_multiplier</code>,
+and the KKT residuals (<code>primal_feasibility</code>,
+<code>stationarity</code>, <code>complementarity</code>). The callback’s
+return value controls the solve: return <code>FALSE</code> to continue,
+or <code>TRUE</code> to <strong>stop early</strong> — in which case the
+<code>optimization_status</code> is <code>USER_TERMINATION</code>.</p>
+<p>Used as a pure monitor (always returning <code>FALSE</code>), it lets
+you watch convergence. Here we record the stationarity residual at each
+iterate of the Rosenbrock solve:</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" tabindex="-1"></a>ros_obj  <span class="ot">&lt;-</span> <span class="cf">function</span>(x) (<span class="dv">1</span> <span class="sc">-</span> x[<span class="dv">1</span>])<span class="sc">^</span><span class="dv">2</span> <span class="sc">+</span> <span class="dv">100</span> <span class="sc">*</span> (x[<span class="dv">2</span>] <span class="sc">-</span> x[<span class="dv">1</span>]<span class="sc">^</span><span class="dv">2</span>)<span class="sc">^</span><span class="dv">2</span></span>
+<span id="cb14-2"><a href="#cb14-2" tabindex="-1"></a>ros_grad <span class="ot">&lt;-</span> <span class="cf">function</span>(x) <span class="fu">c</span>(<span class="sc">-</span><span class="dv">2</span> <span class="sc">*</span> (<span class="dv">1</span> <span class="sc">-</span> x[<span class="dv">1</span>]) <span class="sc">-</span> <span class="dv">400</span> <span class="sc">*</span> x[<span class="dv">1</span>] <span class="sc">*</span> (x[<span class="dv">2</span>] <span class="sc">-</span> x[<span class="dv">1</span>]<span class="sc">^</span><span class="dv">2</span>),</span>
+<span id="cb14-3"><a href="#cb14-3" tabindex="-1"></a>                          <span class="dv">200</span> <span class="sc">*</span> (x[<span class="dv">2</span>] <span class="sc">-</span> x[<span class="dv">1</span>]<span class="sc">^</span><span class="dv">2</span>))</span>
+<span id="cb14-4"><a href="#cb14-4" tabindex="-1"></a>ros_hess <span class="ot">&lt;-</span> <span class="cf">function</span>(x, sigma, lambda)</span>
+<span id="cb14-5"><a href="#cb14-5" tabindex="-1"></a>  sigma <span class="sc">*</span> <span class="fu">c</span>(<span class="dv">2</span> <span class="sc">-</span> <span class="dv">400</span> <span class="sc">*</span> x[<span class="dv">2</span>] <span class="sc">+</span> <span class="dv">1200</span> <span class="sc">*</span> x[<span class="dv">1</span>]<span class="sc">^</span><span class="dv">2</span>, <span class="sc">-</span><span class="dv">400</span> <span class="sc">*</span> x[<span class="dv">1</span>], <span class="dv">200</span>)</span>
+<span id="cb14-6"><a href="#cb14-6" tabindex="-1"></a></span>
+<span id="cb14-7"><a href="#cb14-7" tabindex="-1"></a>stationarity <span class="ot">&lt;-</span> <span class="fu">numeric</span>(<span class="dv">0</span>)</span>
+<span id="cb14-8"><a href="#cb14-8" tabindex="-1"></a>mon <span class="ot">&lt;-</span> <span class="fu">uno_solve</span>(</span>
+<span id="cb14-9"><a href="#cb14-9" tabindex="-1"></a>  <span class="at">n =</span> <span class="dv">2</span><span class="dt">L</span>, <span class="at">lb =</span> <span class="fu">c</span>(<span class="sc">-</span><span class="cn">Inf</span>, <span class="sc">-</span><span class="cn">Inf</span>), <span class="at">ub =</span> <span class="fu">c</span>(<span class="cn">Inf</span>, <span class="cn">Inf</span>), <span class="at">sense =</span> <span class="st">&quot;minimize&quot;</span>,</span>
+<span id="cb14-10"><a href="#cb14-10" tabindex="-1"></a>  <span class="at">obj =</span> ros_obj, <span class="at">grad =</span> ros_grad,</span>
+<span id="cb14-11"><a href="#cb14-11" tabindex="-1"></a>  <span class="at">m =</span> <span class="dv">0</span><span class="dt">L</span>, <span class="at">cl =</span> <span class="fu">numeric</span>(), <span class="at">cu =</span> <span class="fu">numeric</span>(), <span class="at">cons =</span> <span class="cf">function</span>(x) <span class="fu">numeric</span>(),</span>
+<span id="cb14-12"><a href="#cb14-12" tabindex="-1"></a>  <span class="at">jac_rows =</span> <span class="fu">integer</span>(), <span class="at">jac_cols =</span> <span class="fu">integer</span>(), <span class="at">jac =</span> <span class="cf">function</span>(x) <span class="fu">numeric</span>(),</span>
+<span id="cb14-13"><a href="#cb14-13" tabindex="-1"></a>  <span class="at">hess_rows =</span> <span class="fu">as.integer</span>(<span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">2</span>)), <span class="at">hess_cols =</span> <span class="fu">as.integer</span>(<span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">2</span>)), <span class="at">hess =</span> ros_hess,</span>
+<span id="cb14-14"><a href="#cb14-14" tabindex="-1"></a>  <span class="at">x0 =</span> <span class="fu">c</span>(<span class="sc">-</span><span class="fl">1.2</span>, <span class="dv">1</span>), <span class="at">preset =</span> <span class="st">&quot;ipopt&quot;</span>, <span class="at">base_indexing =</span> <span class="dv">1</span><span class="dt">L</span>, <span class="at">verbose =</span> <span class="cn">FALSE</span>, <span class="at">options =</span> quiet,</span>
+<span id="cb14-15"><a href="#cb14-15" tabindex="-1"></a>  <span class="at">iter_callback =</span> <span class="cf">function</span>(info) {</span>
+<span id="cb14-16"><a href="#cb14-16" tabindex="-1"></a>    stationarity[[<span class="fu">length</span>(stationarity) <span class="sc">+</span> <span class="dv">1</span><span class="dt">L</span>]] <span class="ot">&lt;&lt;-</span> info<span class="sc">$</span>stationarity</span>
+<span id="cb14-17"><a href="#cb14-17" tabindex="-1"></a>    <span class="cn">FALSE</span>                                            <span class="co"># keep going</span></span>
+<span id="cb14-18"><a href="#cb14-18" tabindex="-1"></a>  }</span>
+<span id="cb14-19"><a href="#cb14-19" tabindex="-1"></a>)</span>
+<span id="cb14-20"><a href="#cb14-20" tabindex="-1"></a><span class="fu">names</span>(mon<span class="sc">$</span>optimization_status)</span>
+<span id="cb14-21"><a href="#cb14-21" tabindex="-1"></a><span class="co">#&gt; [1] &quot;SUCCESS&quot;</span></span>
+<span id="cb14-22"><a href="#cb14-22" tabindex="-1"></a><span class="fu">length</span>(stationarity)                                 <span class="co"># one entry per acceptable iterate</span></span>
+<span id="cb14-23"><a href="#cb14-23" tabindex="-1"></a><span class="co">#&gt; [1] 21</span></span>
+<span id="cb14-24"><a href="#cb14-24" tabindex="-1"></a><span class="fu">signif</span>(<span class="fu">range</span>(stationarity), <span class="dv">3</span>)                       <span class="co"># residual shrinks toward 0</span></span>
+<span id="cb14-25"><a href="#cb14-25" tabindex="-1"></a><span class="co">#&gt; [1] 3.73e-10 2.60e+01</span></span></code></pre></div>
+<p>Returning <code>TRUE</code> stops the solve. For example, to bail out
+after five acceptable iterates — note the super-assignment
+<code>&lt;&lt;-</code>, needed so the counter persists across calls
+rather than writing a local copy:</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" tabindex="-1"></a>iter <span class="ot">&lt;-</span> <span class="dv">0</span><span class="dt">L</span></span>
+<span id="cb15-2"><a href="#cb15-2" tabindex="-1"></a>stopped <span class="ot">&lt;-</span> <span class="fu">uno_solve</span>(</span>
+<span id="cb15-3"><a href="#cb15-3" tabindex="-1"></a>  <span class="at">n =</span> <span class="dv">2</span><span class="dt">L</span>, <span class="at">lb =</span> <span class="fu">c</span>(<span class="sc">-</span><span class="cn">Inf</span>, <span class="sc">-</span><span class="cn">Inf</span>), <span class="at">ub =</span> <span class="fu">c</span>(<span class="cn">Inf</span>, <span class="cn">Inf</span>), <span class="at">sense =</span> <span class="st">&quot;minimize&quot;</span>,</span>
+<span id="cb15-4"><a href="#cb15-4" tabindex="-1"></a>  <span class="at">obj =</span> ros_obj, <span class="at">grad =</span> ros_grad,</span>
+<span id="cb15-5"><a href="#cb15-5" tabindex="-1"></a>  <span class="at">m =</span> <span class="dv">0</span><span class="dt">L</span>, <span class="at">cl =</span> <span class="fu">numeric</span>(), <span class="at">cu =</span> <span class="fu">numeric</span>(), <span class="at">cons =</span> <span class="cf">function</span>(x) <span class="fu">numeric</span>(),</span>
+<span id="cb15-6"><a href="#cb15-6" tabindex="-1"></a>  <span class="at">jac_rows =</span> <span class="fu">integer</span>(), <span class="at">jac_cols =</span> <span class="fu">integer</span>(), <span class="at">jac =</span> <span class="cf">function</span>(x) <span class="fu">numeric</span>(),</span>
+<span id="cb15-7"><a href="#cb15-7" tabindex="-1"></a>  <span class="at">hess_rows =</span> <span class="fu">as.integer</span>(<span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">2</span>)), <span class="at">hess_cols =</span> <span class="fu">as.integer</span>(<span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">1</span>, <span class="dv">2</span>)), <span class="at">hess =</span> ros_hess,</span>
+<span id="cb15-8"><a href="#cb15-8" tabindex="-1"></a>  <span class="at">x0 =</span> <span class="fu">c</span>(<span class="sc">-</span><span class="fl">1.2</span>, <span class="dv">1</span>), <span class="at">preset =</span> <span class="st">&quot;ipopt&quot;</span>, <span class="at">base_indexing =</span> <span class="dv">1</span><span class="dt">L</span>, <span class="at">verbose =</span> <span class="cn">FALSE</span>, <span class="at">options =</span> quiet,</span>
+<span id="cb15-9"><a href="#cb15-9" tabindex="-1"></a>  <span class="at">iter_callback =</span> <span class="cf">function</span>(info) { iter <span class="ot">&lt;&lt;-</span> iter <span class="sc">+</span> <span class="dv">1</span><span class="dt">L</span>; iter <span class="sc">&gt;=</span> <span class="dv">5</span><span class="dt">L</span> }</span>
+<span id="cb15-10"><a href="#cb15-10" tabindex="-1"></a>)</span>
+<span id="cb15-11"><a href="#cb15-11" tabindex="-1"></a>iter                                 <span class="co"># stopped after the 5th acceptable iterate</span></span>
+<span id="cb15-12"><a href="#cb15-12" tabindex="-1"></a><span class="co">#&gt; [1] 5</span></span>
+<span id="cb15-13"><a href="#cb15-13" tabindex="-1"></a><span class="fu">names</span>(stopped<span class="sc">$</span>optimization_status)   <span class="co"># &quot;USER_TERMINATION&quot;</span></span>
+<span id="cb15-14"><a href="#cb15-14" tabindex="-1"></a><span class="co">#&gt; [1] &quot;USER_TERMINATION&quot;</span></span></code></pre></div>
+<p>An error thrown inside the callback is caught and treated as “do not
+terminate,” so a buggy monitor cannot crash the solve.</p>
+</div>
+<div id="additional-notes" class="section level2">
+<h2>Additional Notes</h2>
+<ul>
+<li>Errors thrown inside a callback are caught and reported back to Uno
+as an evaluation error — they will not crash the R session. If this
+happens, please report the bug with a reproducible example.</li>
+<li><code>uno_solve()</code> also accepts a <code>log_callback</code> (a
+sink for Uno’s output stream); see <code>?uno_solve</code> for the full
+argument list.</li>
+</ul>
+</div>
+
+
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

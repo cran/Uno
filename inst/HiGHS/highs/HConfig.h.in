@@ -1,0 +1,34 @@
+#ifndef HCONFIG_H_
+#define HCONFIG_H_
+
+#cmakedefine FAST_BUILD
+#cmakedefine ZLIB_FOUND
+#cmakedefine CUPDLP_CPU
+#cmakedefine CUPDLP_GPU
+#cmakedefine HIPO
+#cmakedefine CMAKE_BUILD_TYPE "@CMAKE_BUILD_TYPE@"
+#cmakedefine HIGHSINT64
+#cmakedefine HIGHS_NO_DEFAULT_THREADS
+#cmakedefine HIGHS_HAVE_MM_PAUSE
+#cmakedefine HIGHS_HAVE_BUILTIN_CLZ
+#cmakedefine HIGHS_HAVE_BITSCAN_REVERSE
+#cmakedefine BLAS_LIBRARIES "@BLAS_LIBRARIES@"
+
+#define HIGHS_GITHASH "@GITHASH@"
+#define HIGHS_VERSION_MAJOR @HIGHS_VERSION_MAJOR@
+#define HIGHS_VERSION_MINOR @HIGHS_VERSION_MINOR@
+#define HIGHS_VERSION_PATCH @HIGHS_VERSION_PATCH@
+
+/* R-package build: route all console I/O to R (Rprintf/REprintf) so the libc
+ * `stdout` / `printf` and `std::cout` symbols never appear in the compiled
+ * objects (required by R CMD check "checking compiled code").  HConfig.h is
+ * included -- directly or transitively -- by every compiled HiGHS translation
+ * unit (the C++ core via util/HighsInt.h, the cupdlp C files via
+ * pdlp/cupdlp/cupdlp_defs.h), which is why the redirection is hooked in here
+ * rather than relying on a non-portable `-include` compiler flag.  Guarded by
+ * HIGHS_R_PRINT, so an upstream build (without -DHIGHS_R_PRINT) is unaffected. */
+#ifdef HIGHS_R_PRINT
+#include "io/r_io.h"
+#endif
+
+#endif /* HCONFIG_H_ */

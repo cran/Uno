@@ -1,0 +1,372 @@
+// Copyright (c) 2018-2024 Charlie Vanaret
+// Licensed under the MIT license. See LICENSE file in the project directory for details.
+
+#include "l1RelaxedProblem.hpp"
+#include "ingredients/hessian_models/HessianModel.hpp"
+#include "linear_algebra/VectorView.hpp"
+#include "model/Model.hpp"
+#include "optimization/Evaluations.hpp"
+#include "optimization/Iterate.hpp"
+#include "symbolic/ScalarMultiple.hpp"
+#include "tools/Infinity.hpp"
+#include "tools/Logger.hpp"
+
+namespace uno {
+   l1RelaxedProblem::l1RelaxedProblem(const Model& model, double objective_multiplier, double constraint_violation_coefficient,
+         bool relax_linear_constraints):
+      // call delegating constructor
+      l1RelaxedProblem(model, ElasticVariables::generate(model, relax_linear_constraints), objective_multiplier,
+         constraint_violation_coefficient) {
+   }
+
+   // delegating constructor
+   l1RelaxedProblem::l1RelaxedProblem(const Model& model, ElasticVariables&& elastic_variables, double objective_multiplier,
+            double constraint_violation_coefficient):
+         OptimizationProblem(model, model.number_variables + elastic_variables.size(), model.number_constraints),
+         elastic_variables(std::move(elastic_variables)),
+         number_elastic_variables(this->elastic_variables.size()),
+         objective_multiplier(objective_multiplier),
+         constraint_violation_coefficient(constraint_violation_coefficient),
+         variables_lower_bounds(this->number_variables, 0.),
+         variables_upper_bounds(this->number_variables, INF<double>) {
+      // copy the original variables. The elastic variables have bounds [0, inf)
+      view(this->variables_lower_bounds, 0, model.number_variables) = model.get_variables_lower_bounds();
+      view(this->variables_upper_bounds, 0, model.number_variables) = model.get_variables_upper_bounds();
+   }
+
+   std::unique_ptr<OptimizationProblem> l1RelaxedProblem::clone() const {
+      return std::make_unique<l1RelaxedProblem>(*this);
+   }
+
+   double l1RelaxedProblem::get_objective_multiplier() const {
+      return this->objective_multiplier;
+   }
+
+   bool l1RelaxedProblem::has_inequality_constraints() const {
+      return this->model.has_inequality_constraints();
+   }
+
+   bool l1RelaxedProblem::has_bound_constraints() const {
+      return true;
+   }
+
+   void l1RelaxedProblem::set_proximal_coefficient(double proximal_coefficient) {
+      this->proximal_coefficient = proximal_coefficient;
+   }
+
+   void l1RelaxedProblem::set_proximal_center(double* proximal_center) {
+      this->proximal_center = proximal_center;
+   }
+
+   size_t l1RelaxedProblem::number_jacobian_nonzeros() const {
+      return this->model.number_jacobian_nonzeros() + this->number_elastic_variables;
+   }
+
+   bool l1RelaxedProblem::has_curvature(const HessianModel& hessian_model) const {
+      // the l1 relaxation does not introduce curvature
+      return hessian_model.has_curvature();
+   }
+
+   size_t l1RelaxedProblem::number_hessian_nonzeros(const HessianModel& hessian_model) const {
+      size_t number_nonzeros = hessian_model.number_nonzeros();
+      // proximal contribution
+      if (this->proximal_center != nullptr && this->proximal_coefficient != 0.) {
+         number_nonzeros += this->model.number_variables;
+      }
+      return number_nonzeros;
+   }
+
+   void l1RelaxedProblem::compute_jacobian_sparsity(uno_int* row_indices, uno_int* column_indices, uno_int row_offset,
+         uno_int column_offset,uno_int solver_indexing, MatrixOrder matrix_order) const {
+      this->model.compute_jacobian_sparsity(row_indices, column_indices, row_offset, column_offset, solver_indexing, matrix_order);
+
+      // add the contribution of the elastic variables
+      size_t nonzero_index = this->model.number_jacobian_nonzeros();
+      for (const auto [constraint_index, elastic_index]: this->elastic_variables.positive) {
+         row_indices[nonzero_index] = static_cast<uno_int>(constraint_index) + row_offset + solver_indexing;
+         column_indices[nonzero_index] = static_cast<uno_int>(elastic_index) + column_offset + solver_indexing;
+         ++nonzero_index;
+      }
+      for (const auto [constraint_index, elastic_index]: this->elastic_variables.negative) {
+         row_indices[nonzero_index] = static_cast<uno_int>(constraint_index) + row_offset + solver_indexing;
+         column_indices[nonzero_index] = static_cast<uno_int>(elastic_index) + column_offset + solver_indexing;
+         ++nonzero_index;
+      }
+   }
+
+   void l1RelaxedProblem::compute_hessian_sparsity(const HessianModel& hessian_model, uno_int* row_indices,
+         uno_int* column_indices, uno_int solver_indexing) const {
+      hessian_model.compute_sparsity(row_indices, column_indices, solver_indexing);
+
+      // diagonal proximal contribution
+      if (this->proximal_center != nullptr && this->proximal_coefficient != 0.) {
+         size_t current_index = hessian_model.number_nonzeros();
+         for (size_t variable_index: Range(this->model.number_variables)) {
+            row_indices[current_index] = static_cast<uno_int>(variable_index) + solver_indexing;
+            column_indices[current_index] = static_cast<uno_int>(variable_index) + solver_indexing;
+            ++current_index;
+         }
+      }
+   }
+
+   void l1RelaxedProblem::evaluate_constraints(const Iterate& iterate, double* constraints, Evaluations& evaluations) const {
+      evaluations.evaluate_constraints(this->model, iterate.primals);
+      for (size_t index: Range(this->number_constraints)) {
+         constraints[index] = evaluations.constraints[index];
+      }
+
+      // add the contribution of the elastic variables
+      for (const auto [constraint_index, elastic_index]: this->elastic_variables.positive) {
+         constraints[constraint_index] -= iterate.primals[elastic_index];
+      }
+      for (const auto [constraint_index, elastic_index]: this->elastic_variables.negative) {
+         constraints[constraint_index] += iterate.primals[elastic_index];
+      }
+   }
+
+   void l1RelaxedProblem::evaluate_objective_gradient(const Iterate& iterate, double* objective_gradient, Evaluations& evaluations) const {
+      // scale nabla f(x) by rho
+      if (this->objective_multiplier != 0.) {
+         evaluations.evaluate_objective_gradient(this->model, iterate.primals);
+         for (size_t index: Range(this->model.number_variables)) {
+            objective_gradient[index] = this->objective_multiplier * evaluations.objective_gradient[index];
+         }
+      }
+      else {
+         for (size_t index: Range(this->model.number_variables)) {
+            objective_gradient[index] = 0.;
+         }
+      }
+
+      // constraint violation (through elastic variables) contribution
+      for (size_t elastic_index: Range(this->model.number_variables, this->number_variables)) {
+         objective_gradient[elastic_index] = this->constraint_violation_coefficient;
+      }
+
+      // proximal contribution
+      if (this->proximal_center != nullptr && this->proximal_coefficient != 0.) {
+         for (size_t variable_index: Range(this->model.number_variables)) {
+            const double scaling = std::min(1., 1./std::abs(this->proximal_center[variable_index]));
+            const double proximal_term = this->proximal_coefficient * scaling * scaling * (iterate.primals[variable_index] - this->proximal_center[variable_index]);
+            objective_gradient[variable_index] += proximal_term;
+         }
+      }
+   }
+
+   void l1RelaxedProblem::evaluate_jacobian(const Vector<double>& primals, double* jacobian_values, Evaluations& evaluations) const {
+      evaluations.evaluate_jacobian(this->model, primals);
+      for (size_t nonzeros_index: Range(this->model.number_jacobian_nonzeros())) {
+         jacobian_values[nonzeros_index] = evaluations.jacobian_values[nonzeros_index];
+      }
+
+      // add the contribution of the elastic variables
+      size_t nonzero_index = this->model.number_jacobian_nonzeros();
+      for ([[maybe_unused]] const auto _: this->elastic_variables.positive) {
+         jacobian_values[nonzero_index] = -1.;
+         ++nonzero_index;
+      }
+      for ([[maybe_unused]] const auto _: this->elastic_variables.negative) {
+         jacobian_values[nonzero_index] = 1.;
+         ++nonzero_index;
+      }
+   }
+
+   // Lagrangian gradient split in two parts: objective contribution and constraints' contribution
+   void l1RelaxedProblem::evaluate_lagrangian_gradient(const Iterate& iterate, Evaluations& evaluations,
+         Vector<double>& lagrangian_gradient) const {
+      lagrangian_gradient.fill(0.);
+
+      // ∇c(x_k) λ_k
+      evaluations.evaluate_jacobian(this->model, iterate.primals);
+      evaluations.compute_jacobian_transposed_vector_product(this->model, iterate.multipliers.constraints.data(),
+         lagrangian_gradient.data());
+      lagrangian_gradient.scale(-1.);
+
+      // z_k
+      for (size_t variable_index: Range(this->model.number_variables)) {
+         lagrangian_gradient[variable_index] -= (iterate.multipliers.lower_bounds[variable_index] +
+            iterate.multipliers.upper_bounds[variable_index]);
+      }
+
+      // ρ f(x_k)
+      if (this->objective_multiplier != 0.) {
+         evaluations.evaluate_objective_gradient(this->model, iterate.primals);
+         lagrangian_gradient += this->objective_multiplier * evaluations.objective_gradient;
+      }
+
+      // elastic variables
+      for (const auto [constraint_index, elastic_index]: this->elastic_variables.positive) {
+         lagrangian_gradient[elastic_index] += this->constraint_violation_coefficient +
+            iterate.multipliers.constraints[constraint_index] - iterate.multipliers.lower_bounds[elastic_index];
+      }
+      for (const auto [constraint_index, elastic_index]: this->elastic_variables.negative) {
+         lagrangian_gradient[elastic_index] += this->constraint_violation_coefficient -
+            iterate.multipliers.constraints[constraint_index] - iterate.multipliers.lower_bounds[elastic_index];
+      }
+
+      // proximal contribution
+      if (this->proximal_center != nullptr && this->proximal_coefficient != 0.) {
+         for (size_t variable_index: Range(this->model.number_variables)) {
+            const double scaling = std::min(1., 1./std::abs(this->proximal_center[variable_index]));
+            const double proximal_term = this->proximal_coefficient * scaling * scaling;
+            lagrangian_gradient[variable_index] += proximal_term * (iterate.primals[variable_index] -
+               this->proximal_center[variable_index]);
+         }
+      }
+   }
+
+   void l1RelaxedProblem::evaluate_lagrangian_hessian(Statistics& statistics, HessianModel& hessian_model, const Vector<double>& primal_variables,
+         const Multipliers& multipliers, double* hessian_values) const {
+      hessian_model.evaluate_hessian(statistics, primal_variables, this->get_objective_multiplier(),
+         multipliers.constraints, hessian_values);
+
+      // proximal contribution
+      size_t nonzero_index = hessian_model.number_nonzeros();
+      if (this->proximal_center != nullptr && this->proximal_coefficient != 0.) {
+         for (size_t variable_index: Range(this->model.number_variables)) {
+            const double scaling = std::min(1., 1./std::abs(this->proximal_center[variable_index]));
+            const double proximal_term = this->proximal_coefficient * scaling * scaling;
+            hessian_values[nonzero_index] = proximal_term;
+            ++nonzero_index;
+         }
+      }
+   }
+
+   void l1RelaxedProblem::compute_jacobian_vector_product(const double* vector, double* result, const Evaluations& evaluations) const {
+      evaluations.compute_jacobian_vector_product(this->model, vector, result);
+
+      // add the contribution of the elastic variables
+      for (const auto [constraint_index, elastic_index]: this->elastic_variables.positive) {
+         result[constraint_index] -= vector[elastic_index];
+      }
+      for (const auto [constraint_index, elastic_index]: this->elastic_variables.negative) {
+         result[constraint_index] += vector[elastic_index];
+      }
+   }
+
+   void l1RelaxedProblem::compute_jacobian_transposed_vector_product(const double* vector, double* result,
+         const Evaluations& evaluations) const {
+      evaluations.compute_jacobian_transposed_vector_product(this->model, vector, result);
+
+      // add the contribution of the elastic variables
+      for (const auto [constraint_index, elastic_index]: this->elastic_variables.positive) {
+         result[elastic_index] -= vector[constraint_index];
+      }
+      for (const auto [constraint_index, elastic_index]: this->elastic_variables.negative) {
+         result[elastic_index] += vector[constraint_index];
+      }
+   }
+
+   void l1RelaxedProblem::compute_hessian_vector_product(HessianModel& hessian_model, const double* x, const double* vector,
+         const Multipliers& multipliers, double* result) const {
+      hessian_model.compute_hessian_vector_product(x, vector, this->get_objective_multiplier(), multipliers.constraints, result);
+
+      // proximal contribution
+      if (this->proximal_center != nullptr && this->proximal_coefficient != 0.) {
+         for (size_t variable_index: Range(this->model.number_variables)) {
+            const double scaling = std::min(1., 1./std::abs(this->proximal_center[variable_index]));
+            const double proximal_term = this->proximal_coefficient * scaling * scaling;
+            result[variable_index] += proximal_term * vector[variable_index];
+         }
+      }
+   }
+
+   SolutionStatus l1RelaxedProblem::check_first_order_convergence(const Iterate& current_iterate, double primal_tolerance,
+         double dual_tolerance) const {
+      // evaluate termination conditions based on optimality conditions
+      const bool feasibility_stationarity = (current_iterate.residuals.stationarity <= dual_tolerance);
+      const bool primal_feasibility = (current_iterate.primal_feasibility <= primal_tolerance);
+      const bool feasibility_complementarity = (current_iterate.residuals.complementarity <= dual_tolerance);
+      const bool no_trivial_duals = current_iterate.multipliers.not_all_zero(this->model.number_variables, dual_tolerance);
+
+      DEBUG << "\nTermination criteria for primal-dual tolerances = (" << primal_tolerance << ", " << dual_tolerance << "):\n";
+      DEBUG << "Primal feasibility: " << std::boolalpha << primal_feasibility << '\n';
+      DEBUG << "Feasibility stationarity: " << std::boolalpha << feasibility_stationarity << '\n';
+      DEBUG << "Feasibility complementarity: " << std::boolalpha << feasibility_complementarity << '\n';
+      DEBUG << "Not all zero multipliers: " << std::boolalpha << no_trivial_duals << "\n\n";
+
+      if (this->model.is_constrained() && feasibility_stationarity && !primal_feasibility && feasibility_complementarity &&
+            no_trivial_duals) {
+         // no primal feasibility, stationary point of constraint violation
+         return SolutionStatus::INFEASIBLE_STATIONARY_POINT;
+      }
+      return SolutionStatus::NOT_OPTIMAL;
+   }
+
+   const std::vector<double>& l1RelaxedProblem::get_variables_lower_bounds() const {
+      return this->variables_lower_bounds;
+   }
+
+   const std::vector<double>& l1RelaxedProblem::get_variables_upper_bounds() const {
+      return this->variables_upper_bounds;
+   }
+
+   const Vector<size_t>& l1RelaxedProblem::get_fixed_variables() const {
+      return this->model.get_fixed_variables();
+   }
+
+   const std::vector<double>& l1RelaxedProblem::get_constraints_lower_bounds() const {
+      return this->model.get_constraints_lower_bounds();
+   }
+
+   const std::vector<double>& l1RelaxedProblem::get_constraints_upper_bounds() const {
+      return this->model.get_constraints_upper_bounds();
+   }
+
+   const Collection<size_t>& l1RelaxedProblem::get_equality_constraints() const {
+      return this->model.get_equality_constraints();
+   }
+
+   const Collection<size_t>& l1RelaxedProblem::get_inequality_constraints() const {
+      return this->model.get_inequality_constraints();
+   }
+
+   const Collection<size_t>& l1RelaxedProblem::get_dual_regularization_constraints() const {
+      return this->dual_regularization_constraints;
+   }
+
+   Inertia l1RelaxedProblem::get_inertia() const {
+      return {this->model.number_variables, this->number_constraints, this->elastic_variables.size()};
+   }
+
+   void l1RelaxedProblem::set_elastic_variable_values(Iterate& iterate, const std::function<void(Iterate&, size_t, size_t,
+         double)>& elastic_setting_function) const {
+      iterate.set_number_variables(this->number_variables);
+      for (const auto [constraint_index, elastic_index]: this->elastic_variables.positive) {
+         elastic_setting_function(iterate, constraint_index, elastic_index, -1.);
+      }
+      for (const auto [constraint_index, elastic_index]: this->elastic_variables.negative) {
+         elastic_setting_function(iterate, constraint_index, elastic_index, 1.);
+      }
+   }
+
+   void l1RelaxedProblem::set_auxiliary_measure(Iterate& iterate) const {
+      iterate.progress.auxiliary = 0.;
+      // form the proximal term: zeta/2 ||D_R (x - x_R)||^2
+      if (this->proximal_center != nullptr && this->proximal_coefficient != 0.) {
+         double proximal_term = 0.;
+         for (size_t variable_index: Range(this->model.number_variables)) {
+            const double scaling = std::min(1., 1./std::abs(this->proximal_center[variable_index]));
+            const double distance_to_center = iterate.primals[variable_index] - this->proximal_center[variable_index];
+            proximal_term += scaling * scaling * distance_to_center * distance_to_center;
+         }
+         proximal_term *= (this->proximal_coefficient / 2.);
+         iterate.progress.auxiliary = proximal_term;
+      }
+   }
+
+   double l1RelaxedProblem::compute_predicted_auxiliary_reduction(const Iterate& current_iterate,
+         const Vector<double>& primal_direction, double step_length) const {
+      double predicted_auxiliary_reduction = 0.;
+      // form the directional derivative -zeta D_R^2 (x - x_R) and scale it by the step length
+      if (this->proximal_center != nullptr && this->proximal_coefficient != 0.) {
+         for (size_t variable_index: Range(this->model.number_variables)) {
+            const double scaling = std::min(1., 1./std::abs(this->proximal_center[variable_index]));
+            const double distance_to_center = current_iterate.primals[variable_index] - this->proximal_center[variable_index];
+            predicted_auxiliary_reduction += scaling * scaling * distance_to_center * primal_direction[variable_index];
+         }
+         predicted_auxiliary_reduction *= step_length * (-this->proximal_coefficient);
+      }
+      return predicted_auxiliary_reduction;
+   }
+} // namespace

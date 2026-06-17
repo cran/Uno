@@ -10,11 +10,12 @@
 #include "linear_algebra/Vector.hpp"
 #include "optimization/ProblemType.hpp"
 #include "symbolic/CollectionAdapter.hpp"
+#include "symbolic/IntegerRange.hpp"
 #include "tools/NumberModelEvaluations.hpp"
 // include AMPL Solver Library (ASL)
 extern "C" {
-#include "asl_pfgh.h"
-#include "getstub.h"
+#include <asl_pfgh.h>
+#include <getstub.h>
 }
 
 namespace uno {
@@ -102,8 +103,8 @@ namespace uno {
       std::vector<double> constraints_upper_bounds;
 
       // lists of variables and constraints + corresponding collection objects
-      const ForwardRange linear_constraints;
-      const ForwardRange nonlinear_constraints;
+      const IntegerRange linear_constraints;
+      const IntegerRange nonlinear_constraints;
       const ProblemType problem_type;
       std::vector<size_t> equality_constraints{};
       CollectionAdapter<std::vector<size_t>&> equality_constraints_collection;
@@ -117,19 +118,6 @@ namespace uno {
       [[nodiscard]] size_t compute_lagrangian_hessian_sparsity() const;
       [[nodiscard]] ProblemType determine_problem_type() const;
    };
-
-   // check that an array of integers is in increasing order (x[i] <= x[i+1])
-   template <typename Array>
-   bool in_increasing_order(const Array& array, size_t length) {
-      size_t index = 0;
-      while (index + 1 < length) {
-         if (array[index] > array[index + 1]) {
-            return false;
-         }
-         index++;
-      }
-      return true;
-   }
 } // namespace
 
 #endif // UNO_AMPLMODEL_H

@@ -99,6 +99,7 @@ namespace uno {
       {"linear_solver", OptionType::STRING},
       {"preset", OptionType::STRING},
       {"option_file", OptionType::STRING},
+      {"write_solution_to_file", OptionType::BOOL},
    };
 
    // setters
@@ -133,7 +134,7 @@ namespace uno {
             this->set_double(option_name, std::stod(option_value), flag_as_overwritten);
          }
          else if (type == OptionType::BOOL) {
-            this->set_bool(option_name, option_value == "yes", flag_as_overwritten);
+            this->set_bool(option_name, option_value == "yes" || option_value == "true", flag_as_overwritten);
          }
          else if (type == OptionType::STRING) {
             this->set_string(option_name, option_value, flag_as_overwritten);

@@ -1,3 +1,25 @@
+# Uno 2.7.4
+
+* Fixed the interior-point ("ipopt") preset on Windows, which failed with "The
+  linear solver MUMPS is unknown". The shim now resolves rmumps' `dmumps_c` via
+  `R_GetCCallable` (works on Windows) instead of `R_FindSymbol` (did not), and
+  `configure.win` builds with MUMPS enabled. Requires `rmumps >= 5.2.1-43`.
+
+* Updated the bundled Uno C++ solver to upstream release 2.7.4. The R-packaging
+  patch set rebased cleanly; the C API is backward-compatible and the R binding
+  is unchanged.
+
+* Build: forward the HiGHS include root into the bundled Uno compile, fixing a
+  "'highs/Highs.h' file not found" error from Uno 2.7.4's prefixed include.
+
+* Keep the bundled HiGHS/Uno source trees out of the *installed* package via a
+  top-level `.Rinstignore`, as CRAN requested; the static libraries are still
+  built from the bundled sources at configure time.
+
+* Fixed an undefined-behavior report from CRAN's gcc-SAN / clang-SAN checks
+  (`uno_binding.cpp`, `make_x`): a length-0 `memcpy` received a NULL source. The
+  copy is now guarded; no user-visible behavior change.
+
 # Uno 2.7.3-1
 
 * Fixed the bundled HiGHS/Uno source build on non-shlib R (CRAN fedora-gcc/clang,

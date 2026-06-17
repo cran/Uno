@@ -16,6 +16,7 @@
 #include "optimization/EvaluationErrors.hpp"
 #include "optimization/Iterate.hpp"
 #include "symbolic/CollectionAdapter.hpp"
+#include "symbolic/IntegerRange.hpp"
 #include "symbolic/Range.hpp"
 #include "tools/Infinity.hpp"
 #include "tools/Logger.hpp"
@@ -333,8 +334,8 @@ protected:
    mutable NumberModelEvaluations number_model_evaluations{};
    const SparseVector<size_t> slacks{};
    Vector<size_t> fixed_variables{};
-   const ForwardRange linear_constraints{0};
-   const ForwardRange nonlinear_constraints;
+   const IntegerRange linear_constraints{0};
+   const IntegerRange nonlinear_constraints;
    std::vector<size_t> equality_constraints;
    CollectionAdapter<std::vector<size_t>> equality_constraints_collection;
    std::vector<size_t> inequality_constraints;
@@ -1118,6 +1119,13 @@ void uno_get_upper_bound_dual_solution(void* solver, double* upper_bound_dual_so
    const Result* result = uno_get_result(solver);
    for (size_t variable_index: Range(result->number_variables)) {
       upper_bound_dual_solution[variable_index] = result->upper_bound_dual_solution[variable_index];
+   }
+}
+
+void uno_get_solution_constraints(void* solver, double* constraint_values) {
+   const Result* result = uno_get_result(solver);
+   for (size_t constraint_index: Range(result->number_constraints)) {
+      constraint_values[constraint_index] = result->constraint_values[constraint_index];
    }
 }
 

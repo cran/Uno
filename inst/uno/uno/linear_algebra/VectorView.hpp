@@ -4,6 +4,7 @@
 #ifndef UNO_VECTORVIEW_H
 #define UNO_VECTORVIEW_H
 
+#include <algorithm>
 #include <cstddef>
 #include "BLAS.hpp"
 #include "symbolic/Inverse.hpp"

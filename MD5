@@ -1,12 +1,12 @@
-d3279802f548fb749e308b35bf5020cb *DESCRIPTION
+bdb1ddf1cae154764f6a804623f49604 *DESCRIPTION
 7750a89d89495a7eb6705abe28359b40 *LICENSE
 ca506b64774034a207191e3c3f1a0389 *NAMESPACE
-09d717fa88139d97f39a87f047e265d4 *NEWS.md
+705d22df70a2bcf79b2376a0cc9022c9 *NEWS.md
 35ff41ae3d04e972d62f2345c7a79b2a *R/Uno-package.R
 1df0d7436ecb65f6071b07c32eaa1bbe *R/cpp11.R
 c91eb3a0ca27c30b8197e5977930eb30 *R/uno_solve.R
 268e6c72c3155e26531e05db8292e85f *README.md
-5350f789b802f8648fc240df14e8b323 *build/vignette.rds
+527e22fb2c47404808aa83f9cf20e90a *build/vignette.rds
 ff54c10a50ba4d35cf2124bc8a235b6f *cleanup
 f1f6d7279db846f9eb3e7c5f42d8bf21 *configure
 690a771f75195cf489357cf932b6e14e *configure.win
@@ -921,7 +921,7 @@ e7eac515fdc97d94cf5d9615bf641444 *inst/uno/uno/linear_algebra/MatrixOrder.hpp
 2ae058e56b5104c02f644f2dbbb061e4 *inst/uno/uno/linear_algebra/Norm.hpp
 4f1f42a2aa788996a157002f58644912 *inst/uno/uno/linear_algebra/SparseVector.hpp
 4652d085f7aebeae98a9054f02efab70 *inst/uno/uno/linear_algebra/Vector.hpp
-c6451ab43505f80ec80eb5466255da18 *inst/uno/uno/linear_algebra/VectorView.hpp
+bb5bb9de0f747a05fbfb79ccb71e17a1 *inst/uno/uno/linear_algebra/VectorView.hpp
 7e94107bd1fbb08e0081f980a9b3dbff *inst/uno/uno/model/BoundRelaxedModel.cpp
 5230a33c1c24ff387bb84f9789614ba8 *inst/uno/uno/model/BoundRelaxedModel.hpp
 42ef0229dfe4eaec68ed4314ec28fc28 *inst/uno/uno/model/FixedBoundsConstraintsModel.cpp
